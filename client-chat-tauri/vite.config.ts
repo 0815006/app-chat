@@ -26,6 +26,10 @@ export default defineConfig(({ mode }) => {
             port: 5175,
           }
         : undefined,
+      // 排除 Rust 编译输出目录，避免与 Cargo 文件锁冲突 (EBUSY)
+      watch: {
+        ignored: ['**/src-tauri/target/**'],
+      },
       proxy: {
         '/api': {
           target: env.VITE_GO_BASE_URL || 'http://127.0.0.1:8080',
