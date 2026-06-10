@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import TitleBar from '../../components/TitleBar.vue'
 import Sidebar from './Sidebar.vue'
 import FriendList from './FriendList.vue'
 import ChatWindow from './ChatWindow.vue'
@@ -12,7 +13,30 @@ const router = useRouter()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 
+/** 前端键盘事件后备（Rust 全局快捷键为主，此处为补） */
+function onKeyDown(e: KeyboardEvent) {
+  // Escape — 取消当前操作
+  if (e.key === 'Escape') {
+    if (chatStore.activeFriendId) {
+      chatStore.setActiveFriend('')
+    }
+    return
+  }
+
+  // Ctrl+N — 新建聊天（聚焦搜索栏）
+  if (e.ctrlKey && e.key === 'n') {
+    e.preventDefault()
+    // 聚焦到 FriendList 的搜索框
+    const input = document.querySelector<HTMLInputElement>('[placeholder="搜索好友..."]')
+    input?.focus()
+    return
+  }
+}
+
 onMounted(async () => {
+  // 注册键盘事件
+  window.addEventListener('keydown', onKeyDown)
+
   // 尝试恢复会话
   const restored = await authStore.restoreSession()
 
@@ -29,15 +53,22 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown)
   chatStore.destroyRealtimeListener()
 })
 </script>
 
 <template>
-  <div class="grid grid-cols-[64px_280px_1fr] grid-rows-[1fr_68px] h-dvh w-full overflow-hidden bg-[#1a1a2e]">
-    <Sidebar />
-    <FriendList />
-    <ChatWindow />
-    <InputArea />
+  <div class="h-dvh w-full flex flex-col overflow-hidden bg-[#1a1a2e]">
+    <!-- 自定义标题栏 -->
+    <TitleBar />
+
+    <!-- 聊天主网格 -->
+    <div class="flex-1 grid grid-cols-[64px_280px_1fr] grid-rows-[1fr_68px] overflow-hidden">
+      <Sidebar />
+      <FriendList />
+      <ChatWindow />
+      <InputArea />
+    </div>
   </div>
 </template>

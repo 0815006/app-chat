@@ -1,7 +1,7 @@
 -- ============================================================
--- Chat App 数据库表结构更新脚本
--- 用途：删除旧表并重建，补全 employee_id 和 msg_type 字段
--- 执行方式：在 Supabase Studio → SQL Editor 中运行
+-- Chat App 数据库表结构初始化脚本
+-- 用途：创建所有业务表 + 注释 + RLS 策略 + Realtime 发布
+-- 执行方式：在 Supabase Studio → SQL Editor 中一次性运行
 -- 注意事项：执行前请确认无重要数据，或先备份
 -- ============================================================
 
@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS public.messages CASCADE;
 DROP TABLE IF EXISTS public.friendships CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 
--- 3. 重建用户资料表（补回 employee_id + created_at 字段）
+-- 3. 重建用户资料表
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   nickname TEXT NOT NULL,    -- 昵称，必填
@@ -29,7 +29,7 @@ COMMENT ON COLUMN public.profiles.nickname IS '用户昵称（公开展示）';
 COMMENT ON COLUMN public.profiles.employee_id IS '7 位工号，仅展示用，非唯一标识';
 COMMENT ON COLUMN public.profiles.avatar_url IS '头像图片链接';
 
--- 4. 重建好友关系表（主键改为 UUID，遵守 rules.md §5.1 规范）
+-- 4. 重建好友关系表（主键 UUID）
 CREATE TABLE public.friendships (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -41,7 +41,7 @@ CREATE TABLE public.friendships (
 COMMENT ON TABLE public.friendships IS '好友关系表';
 COMMENT ON COLUMN public.friendships.status IS '状态：pending (申请中) / accepted (已是好友)';
 
--- 5. 重建聊天消息表（补回 msg_type 字段，sender_id/receiver_id 加 NOT NULL 约束）
+-- 5. 重建聊天消息表
 CREATE TABLE public.messages (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -103,7 +103,5 @@ CREATE POLICY "Users can view own friendships"
 
 -- ============================================================
 -- 验证：执行后可在 Studio → Table Editor 中确认各表字段
--- profiles: id, nickname, employee_id, avatar_url, created_at, updated_at
--- messages: id, sender_id, receiver_id, content, msg_type, is_read, created_at
--- 然后再到 Authentication → Policies 中确认上述 7 条策略已生效
+-- 再到 Authentication → Policies 中确认上述 7 条策略已生效
 -- ============================================================

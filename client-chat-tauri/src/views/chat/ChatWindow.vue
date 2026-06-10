@@ -1,11 +1,43 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import type { Message } from '../../types'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const containerRef = ref<HTMLDivElement>()
+
+/** 时间分隔线阈值：5 分钟 */
+const TIME_GAP_MS = 5 * 60 * 1000
+
+/**
+ * 在相邻消息间隔 >5 分钟的位置插入分隔线
+ * 返回 "(消息 | 'time-separator')[]"
+ */
+const displayMessages = computed(() => {
+  const result: (Message | { _sep: true; time: Date })[] = []
+  const msgs = chatStore.messages
+
+  for (let i = 0; i < msgs.length; i++) {
+    const prev = msgs[i - 1]
+    const curr = msgs[i]
+
+    if (prev) {
+      const gap = new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime()
+      if (gap > TIME_GAP_MS) {
+        result.push({ _sep: true, time: new Date(curr.created_at) })
+      }
+    } else {
+      // 第一条消息总是显示时间分隔
+      result.push({ _sep: true, time: new Date(curr.created_at) })
+    }
+
+    result.push(curr)
+  }
+
+  return result
+})
 
 // 切换好友 / 新消息时自动滚底
 watch(
@@ -17,6 +49,14 @@ watch(
     }
   }
 )
+
+function isSeparator(item: Message | { _sep: boolean; time: Date }): item is { _sep: true; time: Date } {
+  return '_sep' in item
+}
+
+function formatSeparatorTime(date: Date): string {
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
 </script>
 
 <template>
@@ -39,32 +79,52 @@ watch(
 
     <!-- 消息区 -->
     <div ref="containerRef" class="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar flex flex-col gap-0.5">
-      <div
-        v-for="msg in chatStore.messages"
-        :key="msg.id"
-        class="flex gap-3 max-w-[75%] mb-0.5"
-        :class="msg.sender_id === authStore.currentUser?.id ? 'self-end flex-row-reverse' : 'self-start'"
-      >
-        <div
-          v-if="msg.sender_id !== authStore.currentUser?.id"
-          class="w-8 h-8 mt-1 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-semibold shrink-0"
-        >
-          {{ (chatStore.activeFriend?.name ?? '?').charAt(0) }}
-        </div>
-        <div>
-          <div
-            class="px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed break-words"
-            :class="msg.sender_id === authStore.currentUser?.id
-              ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
-              : 'bg-[#1e293b] text-[#e2e8f0] rounded-bl-md'"
-          >
-            {{ msg.content }}
-          </div>
-          <div class="text-[10px] text-[#718096] mt-1" :class="msg.sender_id === authStore.currentUser?.id ? 'text-right' : 'text-left'">
-            {{ new Date(msg.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
-          </div>
-        </div>
+      <!-- 加载态 -->
+      <div v-if="chatStore.isLoading" class="flex items-center justify-center py-12 text-[#718096] text-sm">
+        <span class="w-4 h-4 border-2 border-[#718096]/30 border-t-[#718096] rounded-full animate-spin mr-2"></span>
+        加载消息中...
       </div>
+
+      <template v-for="item in displayMessages">
+        <!-- 时间分隔线 -->
+        <div
+          v-if="isSeparator(item)"
+          :key="'sep_' + item.time.getTime()"
+          class="flex items-center justify-center my-3"
+        >
+          <div class="bg-[#ffffff0d] text-[#718096] text-[11px] px-3 py-1 rounded-full">
+            {{ formatSeparatorTime(item.time) }}
+          </div>
+        </div>
+
+        <!-- 消息气泡 -->
+        <div
+          v-else
+          :key="item.id"
+          class="flex gap-3 max-w-[75%] mb-0.5"
+          :class="item.sender_id === authStore.currentUser?.id ? 'self-end flex-row-reverse' : 'self-start'"
+        >
+          <div
+            v-if="item.sender_id !== authStore.currentUser?.id"
+            class="w-8 h-8 mt-1 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-semibold shrink-0"
+          >
+            {{ (chatStore.activeFriend?.name ?? '?').charAt(0) }}
+          </div>
+          <div>
+            <div
+              class="px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed break-words"
+              :class="item.sender_id === authStore.currentUser?.id
+                ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
+                : 'bg-[#1e293b] text-[#e2e8f0] rounded-bl-md'"
+            >
+              {{ item.content }}
+            </div>
+            <div class="text-[10px] text-[#718096] mt-1" :class="item.sender_id === authStore.currentUser?.id ? 'text-right' : 'text-left'">
+              {{ new Date(item.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </main>
 

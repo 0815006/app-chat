@@ -34,6 +34,17 @@ function searchFriends() {
 
     <!-- 好友列表 -->
     <div class="flex-1 overflow-y-auto custom-scrollbar">
+      <!-- 加载骨架屏 -->
+      <template v-if="chatStore.isLoadingFriends">
+        <div v-for="n in 5" :key="'skel_' + n" class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 animate-pulse">
+          <div class="w-10 h-10 rounded-full bg-[#2d3748] shrink-0"></div>
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div class="h-3 bg-[#2d3748] rounded w-24"></div>
+            <div class="h-2.5 bg-[#2d3748] rounded w-16"></div>
+          </div>
+        </div>
+      </template>
+
       <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
         在线 — {{ chatStore.onlineCount }}
       </div>

@@ -112,10 +112,28 @@ go-chat-server/
 - 所有的数据获取、发送、登录等网络行为，必须统一封装在 `src/services/` 目录下。
 - 视图层**仅与 Pinia Store 交互**，通过 Store 调度 Service 层。
 - **目的**：确保未来将底层网络从 Supabase 切换为自建 Go 后端时，UI 视图层和 Store 层无需改动任何一行代码。
+
 - Service 层采用**适配器模式 (Adapter Pattern)**：
-  - 在 `src/types/index.ts` 中定义通用服务接口（如 `IChatService`），声明所有业务方法签名。
-  - 在 `src/services/` 中提供具体实现类（一期：`chatService.ts` 基于 Supabase SDK；二期：新增 `goChatService.ts` 基于 Axios + WebSocket）。
-  - 通过 Store 消费接口类型，运行时注入具体实现，实现后端零感知切换。
+
+  **① 接口契约** — 在 `src/types/index.ts` 中定义 `IChatService` 接口，声明全部业务方法签名（`login`, `sendMessage`, `fetchHistory`, `fetchFriends`, `subscribeToMessages` 等）。
+  **② 适配器实现** — 在 `src/services/` 下提供两个实现类：
+  - `chatService.ts`：`SupabaseChatService` 类，基于 `@supabase/supabase-js` SDK（一期默认）
+  - `goChatService.ts`：`GoChatService` 类，基于 Axios HTTP + 原生 WebSocket（二期切换目标）
+  **③ 统一调度入口** — 在 `src/services/index.ts` 中，根据环境变量 `VITE_BACKEND_TYPE` 静态选择具体实现，导出唯一的 `chatService` 实例：
+  ```ts
+  // src/services/index.ts — 全局调度入口，根据环境变量选择后端适配器
+  import { SupabaseChatService } from './chatService'
+  import { GoChatService } from './goChatService'
+  import type { IChatService } from '../types'
+
+  const chatService: IChatService =
+    import.meta.env.VITE_BACKEND_TYPE === 'GO'
+      ? new GoChatService()
+      : new SupabaseChatService()
+
+  export { chatService }
+  ```
+  **④ 消费规则** — Pinia Store 及其它模块**只能**从 `src/services/index.ts` import `chatService` 实例，**严禁**直接 import 具体适配器类或 `new` 适配器。全站仅此一处实例化入口。
 
 ### 2.3 聊天主界面布局骨架规范 (CSS Grid)
 
@@ -271,10 +289,7 @@ router.beforeEach(async (to, _from, next) => {
 - 在 `chatStore` 中通过 `initRealtimeListener` 方法订阅 `messages` 表的 `INSERT` 事件。
 - 收到新消息后，仅当消息的 `sender_id` 或 `receiver_id` 与当前活跃聊天好友匹配时，才 push 到响应式 `messages` 数组中。
 - **避免重复订阅**：`initRealtimeListener` 方法必须检查是否已有活跃订阅，防止多次调用产生重复消息。
-- **必须**在 Supabase 后台 -> Database -> Replication 中，为 `messages` 表开启 Realtime 发布：
-  ```sql
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-  ```
+- **必须**在 Supabase 后台 -> Database -> Replication 中，为 `messages` 表开启 Realtime 发布。详细操作参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 7 章。
 
 ### 3.4 文件存储 (Storage)
 
@@ -362,111 +377,64 @@ router.beforeEach(async (to, _from, next) => {
 
 ### 5.2 核心业务表结构 (Supabase / PostgreSQL)
 
+> 完整建表 SQL、索引优化及常用查询参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 4 章。
+> 一键执行脚本：[`docs/更新表结构.sql`](../docs/更新表结构.sql)
+
 #### 5.2.1 用户资料表 (`profiles`)
 
-```sql
-CREATE TABLE public.profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  nickname TEXT NOT NULL,
-  employee_id TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-COMMENT ON TABLE public.profiles IS '用户公开资料表';
-COMMENT ON COLUMN public.profiles.id IS '用户 ID，关联 auth.users';
-COMMENT ON COLUMN public.profiles.nickname IS '用户昵称（公开展示）';
-COMMENT ON COLUMN public.profiles.employee_id IS '7 位工号，仅展示用，非唯一标识';
-COMMENT ON COLUMN public.profiles.avatar_url IS '头像图片链接';
-```
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `UUID` (PK, FK→auth.users) | 用户唯一标识 |
+| `nickname` | `TEXT` (NOT NULL) | 用户昵称 |
+| `employee_id` | `TEXT` | 7 位工号，仅展示用 |
+| `avatar_url` | `TEXT` | 头像 URL |
+| `created_at` | `TIMESTAMPTZ` | 创建时间 |
+| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
 
 #### 5.2.2 好友关系表 (`friendships`)
 
-```sql
-CREATE TABLE public.friendships (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  friend_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  status TEXT DEFAULT 'accepted',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-COMMENT ON TABLE public.friendships IS '好友关系表';
-COMMENT ON COLUMN public.friendships.status IS '状态：pending (申请中) / accepted (已是好友)';
-```
+> 好友关系为**双向存储**：A 加 B 为好友时，同时写入 `(A, B)` 和 `(B, A)` 两条记录。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `UUID` (PK) | 关系记录 ID |
+| `user_id` | `UUID` (FK→profiles.id) | 用户 ID |
+| `friend_id` | `UUID` (FK→profiles.id) | 好友 ID |
+| `status` | `TEXT` | `accepted`（已是好友）/ `pending`（申请中） |
+| `created_at` | `TIMESTAMPTZ` | 创建时间 |
 
 #### 5.2.3 聊天消息表 (`messages`)
 
-```sql
-CREATE TABLE public.messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  receiver_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  msg_type TEXT DEFAULT 'text' CHECK (msg_type IN ('text', 'image', 'file', 'voice')),
-  is_read BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-COMMENT ON TABLE public.messages IS '聊天消息表';
-COMMENT ON COLUMN public.messages.msg_type IS '消息类型：text | image | file | voice';
-COMMENT ON COLUMN public.messages.is_read IS '接收方是否已读';
-COMMENT ON COLUMN public.messages.created_at IS '消息发送时间';
-```
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | `UUID` (PK) | 消息唯一标识 |
+| `sender_id` | `UUID` (FK→profiles.id, NOT NULL) | 发送者 ID |
+| `receiver_id` | `UUID` (FK→profiles.id, NOT NULL) | 接收者 ID |
+| `content` | `TEXT` (NOT NULL) | 文本消息存文字，文件/图片/语音存 Storage URL |
+| `msg_type` | `TEXT` | `text` / `image` / `file` / `voice` |
+| `is_read` | `BOOLEAN` | 是否已读 |
+| `created_at` | `TIMESTAMPTZ` | 发送时间 |
 
-- `sender_id` / `receiver_id`：关联 `profiles.id`（UUID 类型）。
-- `content`：文本消息存文字内容，文件/图片/语音消息存 Storage URL 链接。
-- 查询历史消息时，使用 OR 条件匹配双向对话：
-  ```sql
-  WHERE (sender_id = 'A' AND receiver_id = 'B') OR (sender_id = 'B' AND receiver_id = 'A')
-  ORDER BY created_at ASC LIMIT 100
-  ```
+- 查询历史消息时，使用 OR 条件匹配双向对话（具体 SQL 参见指导手册 4.3 节）。
 
 ### 5.3 Row Level Security (RLS) 策略
 
-Supabase 默认开启 RLS，必须显式添加策略才能正常读写。以下为各表必须的最小策略集：
+Supabase 默认开启 RLS，必须显式添加以下 **7 条最小策略**才能正常读写。完整 SQL 及调试方法参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 5 章。
 
-```sql
--- profiles: 用户可插入自己的资料（注册时写入）
-CREATE POLICY "Users can insert own profile"
-  ON public.profiles FOR INSERT
-  WITH CHECK (auth.uid() = id);
-
--- profiles: 用户可更新自己的资料
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
-
--- profiles: 所有人可查看资料（公开信息）
-CREATE POLICY "Profiles are viewable by everyone"
-  ON public.profiles FOR SELECT
-  USING (true);
-
--- messages: 发送者可插入消息
-CREATE POLICY "Users can insert own messages"
-  ON public.messages FOR INSERT
-  WITH CHECK (auth.uid() = sender_id);
-
--- messages: 参与对话的双方可查看消息
-CREATE POLICY "Users can view their conversations"
-  ON public.messages FOR SELECT
-  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
-
--- friendships: 用户可插入好友关系
-CREATE POLICY "Users can insert own friendships"
-  ON public.friendships FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
--- friendships: 用户可查看自己的好友关系
-CREATE POLICY "Users can view own friendships"
-  ON public.friendships FOR SELECT
-  USING (auth.uid() = user_id OR auth.uid() = friend_id);
-```
+| # | 表 | 操作 | 策略名称 | 规则 |
+|---|----|------|---------|------|
+| 1 | `profiles` | INSERT | Users can insert own profile | `auth.uid() = id` |
+| 2 | `profiles` | UPDATE | Users can update own profile | `auth.uid() = id` |
+| 3 | `profiles` | SELECT | Profiles are viewable by everyone | `true`（公开） |
+| 4 | `messages` | INSERT | Users can insert own messages | `auth.uid() = sender_id` |
+| 5 | `messages` | SELECT | Users can view their conversations | `auth.uid() IN (sender_id, receiver_id)` |
+| 6 | `friendships` | INSERT | Users can insert own friendships | `auth.uid() = user_id` |
+| 7 | `friendships` | SELECT | Users can view own friendships | `auth.uid() IN (user_id, friend_id)` |
 
 ### 5.4 Realtime 发布
 
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-```
+- 必须为 `messages` 表开启 Realtime 发布，执行 `ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;`
+- 详细操作参见 [`docs/Supabase运维手册.md`](../docs/Supabase运维手册.md) 第 6 章。
 
 ---
 
@@ -481,19 +449,31 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 
 ```env
 # Supabase 连接
-VITE_SUPABASE_URL=http://127.0.0.1:8000
+VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
-# 后端类型切换 (一期: supabase, 二期: go-backend)
-VITE_BACKEND_TYPE=supabase
+# 后端类型切换：SUPABASE（一期默认）| GO（二期自建后端）
+VITE_BACKEND_TYPE=SUPABASE
 
 # Go 后端地址 (二期启用)
-VITE_GO_API_BASE=http://127.0.0.1:8080/api
+VITE_GO_BASE_URL=http://127.0.0.1:8080
 VITE_GO_WS_URL=ws://127.0.0.1:8080/ws
 ```
 
 - 所有敏感 Key 禁止硬编码在代码中，必须通过 `import.meta.env.VITE_*` 读取。
-- `VITE_BACKEND_TYPE` 用于 Service 层适配器切换，取值为 `'supabase'` 或 `'go-backend'`。
+- `VITE_BACKEND_TYPE` 用于 Service 层适配器切换，取值为 `'SUPABASE'` 或 `'GO'`（严格大写）。
+- 必须在 `src/vite-env.d.ts` 中声明自定义环境变量类型，确保 TypeScript 有完整的类型提示：
+  ```ts
+  /// <reference types="vite/client" />
+  interface ImportMetaEnv {
+    readonly VITE_BACKEND_TYPE: 'SUPABASE' | 'GO'
+    readonly VITE_SUPABASE_URL: string
+    readonly VITE_SUPABASE_ANON_KEY: string
+    readonly VITE_GO_BASE_URL: string
+    readonly VITE_GO_WS_URL: string
+  }
+  interface ImportMeta { readonly env: ImportMetaEnv }
+  ```
 
 ---
 
@@ -539,3 +519,5 @@ $env:GOOS="linux"; $env:GOARCH="amd64"; go build -ldflags "-s -w" -o go-chat-ser
 8. **布局一致性**：修改聊天界面布局时，必须严格遵守 2.3 节定义的 CSS Grid 骨架，禁止随意增删网格列或修改列宽/行高。
 9. **实时消息幂等**：在 Store 的 Realtime 回调中，push 新消息前须检查 `messages` 数组中是否已存在相同 `id` 的消息（通过 `Array.some()` 判断），防止重复插入。
 10. **数据库修改**：一期通过 Supabase Dashboard 或 Migration 脚本修改表结构，二期通过 GORM AutoMigrate。禁止直接在数据库中手动执行非版本化的 DDL。
+11. **适配器入口**：全站数据通信必须统一从 `src/services/index.ts` 导出的 `chatService` 实例发起，**严禁**在组件或 Store 中直接 `new` 具体适配器类。
+12. **环境变量切换**：后端切换严格依赖 `import.meta.env.VITE_BACKEND_TYPE`（值为 `'SUPABASE'` 或 `'GO'`），禁止通过 UI 按钮动态切换后端（静态环境变量方案 — 编译时决定，保证包体积最小）。

@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed, nextTick } from 'vue'
 import type { Message, Friend, ChatServiceType } from '../types'
-import { chatService } from '../services/chatService'
+import { chatService } from '../services'
 import { useAuthStore } from './auth'
+import { toast } from '../utils/toast'
+import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 
 export const useChatStore = defineStore('chat', () => {
   // ========== 状态 ==========
@@ -48,7 +50,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       friends.value = await chatService.fetchFriends()
     } catch (e) {
-      console.error('获取好友列表失败:', e)
+      toast.error(e instanceof Error ? e.message : '获取好友列表失败')
     } finally {
       isLoadingFriends.value = false
     }
@@ -122,6 +124,9 @@ export const useChatStore = defineStore('chat', () => {
       msg_type: msgType,
       sender_id: authStore.currentUser.id,
       receiver_id: activeFriend.value.friend_id,
+    }).catch((e) => {
+      toast.error(e instanceof Error ? e.message : '发送消息失败')
+      throw e
     })
 
     messages.value.push(msg)
@@ -147,6 +152,37 @@ export const useChatStore = defineStore('chat', () => {
 
   // ========== 实时监听 ==========
 
+  /**
+   * 发送系统原生通知（窗口未聚焦时）
+   * 仅当通知权限已授予时发送；权限未授予时静默跳过
+   */
+  async function sendSystemNotification(msg: Message) {
+    try {
+      let permitted = await isPermissionGranted()
+      if (!permitted) {
+        const result = await requestPermission()
+        permitted = result === 'granted'
+      }
+      if (!permitted) return
+
+      // 仅对方发来的消息才通知，自己发的跳过
+      const authStore = useAuthStore()
+      if (!authStore.currentUser || msg.sender_id === authStore.currentUser.id) return
+
+      const friend = friends.value.find(
+        (f) => f.friend_id === msg.sender_id
+      )
+      sendNotification({
+        title: friend?.name ?? '新消息',
+        body: msg.msg_type === 'text'
+          ? (msg.content.length > 60 ? msg.content.slice(0, 60) + '…' : msg.content)
+          : `[${msg.msg_type === 'image' ? '图片' : msg.msg_type === 'voice' ? '语音' : '文件'}]`,
+      })
+    } catch {
+      // Tauri notification API 在非 Tauri 环境（浏览器开发）会报错，静默忽略
+    }
+  }
+
   /** 初始化实时消息监听 */
   function initRealtimeListener() {
     if (unsubscribeRealtime) {
@@ -163,7 +199,10 @@ export const useChatStore = defineStore('chat', () => {
         (newMsg.receiver_id === activeFriend.value.friend_id ||
           newMsg.sender_id === activeFriend.value.friend_id)
       ) {
-        messages.value.push(newMsg)
+        // 幂等：防止重复插入相同 id 的消息
+        if (!messages.value.some((m) => m.id === newMsg.id)) {
+          messages.value.push(newMsg)
+        }
 
         // 对方发来的消息标记为已读
         if (newMsg.sender_id === activeFriend.value.friend_id) {
@@ -186,6 +225,14 @@ export const useChatStore = defineStore('chat', () => {
         // 将当前好友移到列表顶部
         const f = friends.value.splice(friendIndex, 1)[0]
         friends.value.unshift(f)
+      }
+
+      // ===== 系统通知：窗口未聚焦时推送 =====
+      if (
+        newMsg.sender_id !== authStore.currentUser.id &&
+        document.visibilityState !== 'visible'
+      ) {
+        sendSystemNotification(newMsg)
       }
     })
   }

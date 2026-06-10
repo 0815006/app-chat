@@ -179,6 +179,18 @@ class SupabaseChatService implements IChatService {
   // ==================== 文件上传 ====================
 
   async uploadFile(params: UploadParams): Promise<string> {
+    // 客户端文件大小前置校验
+    const maxSizes: Record<UploadParams['type'], number> = {
+      image: 10 * 1024 * 1024,   // 10MB
+      file: 50 * 1024 * 1024,    // 50MB
+      voice: 5 * 1024 * 1024,    // 5MB
+    }
+    const maxSize = maxSizes[params.type]
+    if (params.file.size > maxSize) {
+      const sizeMB = (maxSize / 1024 / 1024).toFixed(0)
+      throw new Error(`文件大小超出限制：${params.type === 'image' ? '图片' : params.type === 'voice' ? '语音' : '文件'}最大 ${sizeMB}MB`)
+    }
+
     const supabase = getSupabase()
     const fileExt = params.file.name.split('.').pop()
     const fileName = `${params.userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`
@@ -241,7 +253,7 @@ class SupabaseChatService implements IChatService {
 
     // 同时获取每个好友的最后一条消息
     const result: Friend[] = await Promise.all(
-      (data ?? []).map(async (row: any) => {
+      (data ?? []).map(async (row: Record<string, unknown>) => {
         const friendProfile = Array.isArray(row.friend) ? row.friend[0] : row.friend
         const friendId = row.friend_id as string
 
@@ -259,14 +271,14 @@ class SupabaseChatService implements IChatService {
         const lastMsg = lastMsgs?.[0]
 
         return {
-          id: row.id,
+          id: row.id as string,
           friend_id: friendId,
-          name: friendProfile?.nickname ?? '未知用户',
-          employee_id: friendProfile?.employee_id ?? '',
-          avatar_url: friendProfile?.avatar_url ?? undefined,
+          name: (friendProfile as Record<string, unknown> | null)?.nickname as string ?? '未知用户',
+          employee_id: (friendProfile as Record<string, unknown> | null)?.employee_id as string ?? '',
+          avatar_url: (friendProfile as Record<string, unknown> | null)?.avatar_url as string ?? undefined,
           online: false,
-          last_message: lastMsg?.content,
-          last_message_at: lastMsg?.created_at,
+          last_message: lastMsg?.content as string | undefined,
+          last_message_at: lastMsg?.created_at as string | undefined,
           unread_count: 0,
         }
       })
@@ -350,13 +362,13 @@ class SupabaseChatService implements IChatService {
       throw new Error(`搜索用户失败: ${error.message}`)
     }
 
-    return (data ?? []).map((p: any) => ({
-      id: p.id,
-      employee_id: p.employee_id ?? '',
-      nickname: p.nickname,
+    return (data ?? []).map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      employee_id: (p.employee_id as string) ?? '',
+      nickname: p.nickname as string,
       email: '',
-      avatar_url: p.avatar_url ?? undefined,
-      status: 'offline',
+      avatar_url: (p.avatar_url as string) ?? undefined,
+      status: 'offline' as const,
     }))
   }
 
@@ -382,7 +394,5 @@ class SupabaseChatService implements IChatService {
   }
 }
 
-// 导出单例
-export const chatService: IChatService & {
-  subscribeToMessages(callback: (message: Message) => void): () => void
-} = new SupabaseChatService()
+// 仅导出类，不导出实例（实例由 services/index.ts 统一管理）
+export { SupabaseChatService }

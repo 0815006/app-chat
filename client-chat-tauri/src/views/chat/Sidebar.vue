@@ -1,35 +1,25 @@
 <script setup lang="ts">
 import { useAuthStore } from '../../stores/auth'
-import { useChatStore } from '../../stores/chat'
-import type { ChatServiceType } from '../../types'
 import Avatar from '../../components/Avatar.vue'
 
 const authStore = useAuthStore()
-const chatStore = useChatStore()
-
-function toggleBackend() {
-  const next: ChatServiceType =
-    chatStore.currentBackend === 'supabase' ? 'golang' : 'supabase'
-  chatStore.switchBackend(next)
-}
 </script>
 
 <template>
   <aside
     class="flex flex-col items-center py-3 gap-1 bg-[#17132b] border-r border-[#2a1f5e]"
   >
-    <!-- 后端环境指示灯 -->
-    <button
-      class="relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer bg-[#23204a] hover:bg-[#2f2b5e] hover:rounded-xl"
-      @click="toggleBackend"
-      :title="chatStore.currentBackend === 'supabase' ? '当前：Supabase 后端 (点击切换到 Go)' : '当前：Go 后端 (点击切换到 Supabase)'"
+    <!-- 后端环境指示灯（编译时静态决定，不可点击切换） -->
+    <div
+      class="relative w-12 h-12 rounded-2xl flex items-center justify-center bg-[#23204a] cursor-default"
+      :title="'当前后端：' + (import.meta.env.VITE_BACKEND_TYPE === 'GO' ? 'Go 自建后端' : 'Supabase')"
     >
       <span class="text-lg font-bold text-[#a0aec0]">Go</span>
       <span
         class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#17132b]"
-        :class="chatStore.currentBackend === 'supabase' ? 'bg-green-400' : 'bg-blue-400'"
+        :class="import.meta.env.VITE_BACKEND_TYPE === 'GO' ? 'bg-blue-400' : 'bg-green-400'"
       ></span>
-    </button>
+    </div>
 
     <div class="w-8 h-px bg-[#2a1f5e] my-2"></div>
 
