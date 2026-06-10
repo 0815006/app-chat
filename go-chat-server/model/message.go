@@ -1,0 +1,25 @@
+package model
+
+import (
+	"time"
+)
+
+// Message 聊天消息表
+type Message struct {
+	ID         string    `json:"id" gorm:"primaryKey;type:varchar(36)"`
+	SenderID   string    `json:"sender_id" gorm:"type:varchar(36);not null;index;comment:发送者ID"`
+	ReceiverID string    `json:"receiver_id" gorm:"type:varchar(36);not null;index;comment:接收者ID"`
+	Content    string    `json:"content" gorm:"type:text;not null;comment:文本存文字，文件/图片/语音存URL"`
+	MsgType    string    `json:"msg_type" gorm:"type:varchar(20);not null;default:'text';comment:text/image/file/voice"`
+	IsRead     bool      `json:"is_read" gorm:"not null;default:false;comment:是否已读"`
+	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime;index;comment:发送时间"`
+
+	// 关联
+	Sender   *User `json:"sender,omitempty" gorm:"foreignKey:SenderID;references:ID"`
+	Receiver *User `json:"receiver,omitempty" gorm:"foreignKey:ReceiverID;references:ID"`
+}
+
+// TableName 指定表名
+func (Message) TableName() string {
+	return "messages"
+}
