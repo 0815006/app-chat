@@ -31,10 +31,15 @@ node_modules
 /client-chat-tauri/src-tauri/target
 /client-chat-tauri/src-tauri/gen
 
-# Go
+# Go (go-chat-server)
 /go-chat-server/tmp
 /go-chat-server/*.exe
 /go-chat-server/*.test
+/go-chat-server/go-chat-server
+/go-chat-server/go-chat-server.exe
+/go-chat-server/coverage.out
+/go-chat-server/coverage.html
+/go-chat-server/vendor/
 
 # Supabase / Docker
 supabase/
