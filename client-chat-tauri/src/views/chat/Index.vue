@@ -26,7 +26,14 @@ function onKeyDown(e: KeyboardEvent) {
   // Ctrl+N — 新建聊天（聚焦搜索栏）
   if (e.ctrlKey && e.key === 'n') {
     e.preventDefault()
-    // 聚焦到 FriendList 的搜索框
+    const input = document.querySelector<HTMLInputElement>('[placeholder="搜索好友..."]')
+    input?.focus()
+    return
+  }
+
+  // Ctrl+F — 搜索好友
+  if (e.ctrlKey && e.key === 'f') {
+    e.preventDefault()
     const input = document.querySelector<HTMLInputElement>('[placeholder="搜索好友..."]')
     input?.focus()
     return
@@ -65,7 +72,7 @@ onUnmounted(() => {
 
     <!-- 聊天主网格 -->
     <div class="flex-1 grid grid-cols-[64px_280px_1fr] grid-rows-[1fr_68px] overflow-hidden">
-      <Sidebar />
+      <Sidebar class="row-span-2" />
       <FriendList />
       <ChatWindow />
       <InputArea />

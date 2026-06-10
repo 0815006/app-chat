@@ -112,12 +112,45 @@ function formatSeparatorTime(date: Date): string {
           </div>
           <div>
             <div
-              class="px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed break-words"
+              class="rounded-2xl overflow-hidden"
               :class="item.sender_id === authStore.currentUser?.id
                 ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
                 : 'bg-[#1e293b] text-[#e2e8f0] rounded-bl-md'"
             >
-              {{ item.content }}
+              <!-- 文本 -->
+              <p v-if="item.msg_type === 'text'" class="px-4 py-2.5 text-[14px] leading-relaxed break-words whitespace-pre-wrap">{{ item.content }}</p>
+
+              <!-- 图片 -->
+              <div v-else-if="item.msg_type === 'image'" class="p-1">
+                <img
+                  :src="item.content"
+                  alt="图片消息"
+                  class="max-w-[360px] max-h-[360px] rounded-xl object-cover cursor-pointer"
+                  loading="lazy"
+                />
+              </div>
+
+              <!-- 文件 -->
+              <a
+                v-else-if="item.msg_type === 'file'"
+                :href="item.content"
+                target="_blank"
+                class="flex items-center gap-3 px-4 py-3 text-[14px] text-inherit no-underline hover:opacity-80 transition-opacity"
+                :download="item.content.split('/').pop() ?? 'download'"
+              >
+                <span class="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="truncate">{{ item.content.split('/').pop() ?? '未知文件' }}</span>
+              </a>
+
+              <!-- 语音 -->
+              <div v-else-if="item.msg_type === 'voice'" class="px-4 py-3 flex items-center gap-3">
+                <audio :src="item.content" controls preload="metadata" class="h-9 w-full max-w-[240px]"></audio>
+              </div>
+
+              <!-- 降级 -->
+              <p v-else class="px-4 py-2.5 text-[14px] leading-relaxed break-words">{{ item.content }}</p>
             </div>
             <div class="text-[10px] text-[#718096] mt-1" :class="item.sender_id === authStore.currentUser?.id ? 'text-right' : 'text-left'">
               {{ new Date(item.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}

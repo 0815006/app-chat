@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const isLogin = ref(true)
@@ -45,7 +46,7 @@ async function handleSubmit() {
   try {
     if (isLogin.value) {
       await authStore.login(email.value, password.value)
-      await router.push('/chat')
+      await router.replace((route.query.redirect as string) ?? '/chat')
     } else {
       await authStore.register(
         email.value,
