@@ -1,0 +1,35 @@
+# ===== Frontend (web-apex-vue) =====
+web-apex-vue/node_modules/
+web-apex-vue/dist/
+web-apex-vue/.vite/
+web-apex-vue/*.tsbuildinfo
+web-apex-vue/*.log
+web-apex-vue/npm-debug.log*
+
+# ===== Backend (java-apex-server) =====
+java-apex-server/target/
+java-apex-server/logs/
+java-apex-server/*.log
+java-apex-server/*.class
+java-apex-server/*.jar
+java-apex-server/*.war
+java-apex-server/*.ear
+
+# ===== Docker =====
+docker/data/
+
+# ===== IDE =====
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ===== Environment =====
+.env
+.env.production
+.env.local
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+Desktop.ini
