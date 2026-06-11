@@ -212,6 +212,9 @@ class SupabaseChatService implements IChatService {
       })
 
     if (error) {
+      if (error.message?.includes('Bucket') && error.message?.includes('not found')) {
+        throw new Error(`存储桶 "${bucket}" 不存在，请先执行 docs/init_storage_buckets.sql 初始化`)
+      }
       throw new Error(`文件上传失败: ${error.message}`)
     }
 
@@ -259,13 +262,19 @@ class SupabaseChatService implements IChatService {
     if (!file.type.startsWith('image/')) throw new Error('仅支持图片格式')
 
     const ext = file.name.split('.').pop() ?? 'png'
-    const fileName = `avatars/${user.id}_${Date.now()}.${ext}`
+    // 路径第一级必须是当前用户 UUID（满足 Storage RLS 策略要求）
+    const fileName = `${user.id}/avatars/${Date.now()}.${ext}`
 
     const { error: uploadError } = await supabase.storage
       .from('chat-files')
       .upload(fileName, file, { upsert: true, contentType: file.type })
 
-    if (uploadError) throw new Error(`头像上传失败: ${uploadError.message}`)
+    if (uploadError) {
+      if (uploadError.message?.includes('Bucket') && uploadError.message?.includes('not found')) {
+        throw new Error('存储桶 "chat-files" 不存在，请先执行 docs/init_storage_buckets.sql 初始化')
+      }
+      throw new Error(`头像上传失败: ${uploadError.message}`)
+    }
 
     const { data: urlData } = supabase.storage
       .from('chat-files')

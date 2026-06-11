@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import Avatar from '../../components/Avatar.vue'
 import type { Message } from '../../types'
 
 const authStore = useAuthStore()
@@ -64,9 +65,12 @@ function formatSeparatorTime(date: Date): string {
     <!-- 顶栏 -->
     <header class="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3748] bg-[#1e1935] shrink-0">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-sm font-semibold">
-          {{ (chatStore.activeFriend?.name ?? '?').charAt(0) }}
-        </div>
+        <Avatar
+          :name="chatStore.activeFriend?.name ?? ''"
+          :avatar-url="chatStore.activeFriend?.avatar_url"
+          :online="chatStore.activeFriend?.online"
+          size="sm"
+        />
         <div>
           <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeFriend?.name }}</div>
           <div class="text-[12px] text-[#718096]">
@@ -104,12 +108,12 @@ function formatSeparatorTime(date: Date): string {
           class="flex gap-3 max-w-[75%] mb-0.5"
           :class="item.sender_id === authStore.currentUser?.id ? 'self-end flex-row-reverse' : 'self-start'"
         >
-          <div
+          <Avatar
             v-if="item.sender_id !== authStore.currentUser?.id"
-            class="w-8 h-8 mt-1 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-semibold shrink-0"
-          >
-            {{ (chatStore.activeFriend?.name ?? '?').charAt(0) }}
-          </div>
+            :name="chatStore.activeFriend?.name ?? ''"
+            :avatar-url="chatStore.activeFriend?.avatar_url"
+            size="sm"
+          />
           <div>
             <div
               class="rounded-2xl overflow-hidden"

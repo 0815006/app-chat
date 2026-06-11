@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import Avatar from '../../components/Avatar.vue'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
@@ -14,7 +15,7 @@ function searchFriends() {
 </script>
 
 <template>
-  <aside class="flex flex-col bg-[#1e1935] border-r border-[#2a1f5e]">
+  <aside class="flex flex-col h-full bg-[#1e1935] border-r border-[#2a1f5e]">
     <!-- 搜索栏 + 加好友 -->
     <div class="px-4 py-4 border-b border-[#2a1f5e]">
       <div class="flex items-center gap-2">
@@ -69,15 +70,12 @@ function searchFriends() {
           :class="chatStore.activeFriendId === friend.friend_id ? 'bg-[#252050] text-[#e2e8f0]' : 'text-[#a0aec0]'"
           @click="chatStore.setActiveFriend(friend.friend_id)"
         >
-          <div class="relative shrink-0">
-            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-sm font-semibold">
-              {{ friend.name.charAt(0) }}
-            </div>
-            <span
-              class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1e1935]"
-              :class="friend.online ? 'bg-green-400' : 'bg-[#4a5568]'"
-            ></span>
-          </div>
+          <Avatar
+            :name="friend.name"
+            :avatar-url="friend.avatar_url"
+            :online="friend.online"
+            size="md"
+          />
           <div class="min-w-0 flex-1">
             <div class="text-[14px] font-medium truncate">{{ friend.name }}</div>
             <div class="text-[12px] text-[#718096] truncate">{{ friend.employee_id }}</div>
@@ -97,9 +95,12 @@ function searchFriends() {
 
     <!-- 底部当前用户 -->
     <div class="flex items-center gap-3 px-4 py-3 bg-[#17132b] border-t border-[#2a1f5e]">
-      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-        {{ (authStore.currentUser?.nickname ?? '?').charAt(0) }}
-      </div>
+      <Avatar
+        :name="authStore.currentUser?.nickname ?? ''"
+        :avatar-url="authStore.currentUser?.avatar_url"
+        :key="authStore.currentUser?.avatar_url ?? 'no-avatar-self'"
+        size="sm"
+      />
       <div class="min-w-0">
         <div class="text-[13px] font-medium truncate text-[#e2e8f0]">{{ authStore.currentUser?.nickname }}</div>
         <div class="text-[11px] text-[#718096]">{{ authStore.currentUser?.employee_id }}</div>
