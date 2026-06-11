@@ -1,6 +1,6 @@
 module go-chat-server
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/sonic v1.12.6 // indirect
 	github.com/bytedance/sonic/loader v0.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

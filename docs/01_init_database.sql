@@ -2,11 +2,21 @@
 -- Chat App 数据库表结构初始化脚本
 -- 用途：创建所有业务表 + 注释 + RLS 策略 + Realtime 发布
 -- 执行方式：在 Supabase Studio → SQL Editor 中一次性运行
--- 注意事项：执行前请确认无重要数据，或先备份
+-- 兼容性：全新实例 / 已有旧表 均可安全执行
 -- ============================================================
 
--- 1. 先移除 messages 的 Realtime 发布（否则无法删除表）
-ALTER PUBLICATION supabase_realtime DROP TABLE public.messages;
+-- 1. 安全移除 messages 的 Realtime 发布（表不存在时静默跳过）
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE public.messages;
+  END IF;
+END $$;
 
 -- 2. 按依赖顺序删除表（子表先删，父表后删）
 DROP TABLE IF EXISTS public.messages CASCADE;
