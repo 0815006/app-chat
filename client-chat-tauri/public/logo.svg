@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 主背景渐变：蓝到绿，参考欢迎页面 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="50%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+    <!-- 聊天气泡发光效果 -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <!-- 柔和阴影 -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- 圆角方形背景 -->
+  <rect x="0" y="0" width="512" height="512" rx="120" ry="120" fill="url(#bgGrad)"/>
+
+  <!-- 后方小气泡（代表多条消息） -->
+  <g filter="url(#shadow)" opacity="0.35">
+    <path d="M340 200 C340 188 348 178 360 178 L420 178 C432 178 440 186 440 198 L440 240 C440 252 432 260 420 260 L380 260 L348 292 Z"
+          fill="white" stroke="none"/>
+  </g>
+
+  <!-- 前方主气泡 -->
+  <g filter="url(#shadow)">
+    <path d="M120 150 C120 132 134 118 152 118 L320 118 C338 118 352 132 352 150 L352 248 C352 266 338 280 320 280 L230 280 L160 340 L160 280 L152 280 C134 280 120 266 120 248 Z"
+          fill="white" stroke="none"/>
+  </g>
+
+  <!-- 气泡内三条横线（表示消息内容） -->
+  <g opacity="0.25">
+    <rect x="152" y="170" width="100" height="14" rx="7" fill="#60a5fa"/>
+    <rect x="152" y="200" width="160" height="14" rx="7" fill="#38bdf8"/>
+    <rect x="152" y="230" width="120" height="14" rx="7" fill="#4ade80"/>
+  </g>
+</svg>

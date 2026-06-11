@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { useChatStore } from '../../stores/chat'
+
 import Avatar from '../../components/Avatar.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const chatStore = useChatStore()
+
 
 const backendType = import.meta.env.VITE_BACKEND_TYPE as 'SUPABASE' | 'GO'
 const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'

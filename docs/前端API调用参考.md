@@ -1,9 +1,10 @@
 # 前端 API 调用参考
 
 > **项目**：app-chat (Tauri 2.x + Vue 3 + TypeScript)  
-> **一期后端**：Supabase (本地 Docker 部署)  
+> **一期后端**：Supabase (本地 Docker 部署)；**二期后端**：Go + Gin + WebSocket（代码已就位，通过 `VITE_BACKEND_TYPE` 环境变量切换）  
 > **SDK**：`@supabase/supabase-js` v2.x  
-> **配套文档**：[Supabase 运维手册](./Supabase运维手册.md) | [数据库初始化 SQL](./数据库初始化.sql)
+> **配套文档**：[Supabase 运维手册](./Supabase运维手册.md) | [环境搭建与启动指南](./环境搭建与启动指南.md)  
+> **配套 SQL**：[01_init_database.sql](./01_init_database.sql) | [02_add_online_status.sql](./02_add_online_status.sql) | [03_fix_friendship_rls.sql](./03_fix_friendship_rls.sql) | [04_init_storage_buckets.sql](./04_init_storage_buckets.sql)
 
 ---
 
@@ -15,8 +16,9 @@
 4. [用户资料模块 (Profiles)](#4-用户资料模块-profiles)
 5. [聊天消息模块 (Messages)](#5-聊天消息模块-messages)
 6. [好友关系模块 (Friendships)](#6-好友关系模块-friendships)
-7. [文件存储模块 (Storage)](#7-文件存储模块-storage)
-8. [实时消息模块 (Realtime)](#8-实时消息模块-realtime)
+7. [在线状态模块 (Online Status)](#7-在线状态模块-online-status)
+8. [文件存储模块 (Storage)](#8-文件存储模块-storage)
+9. [实时消息模块 (Realtime)](#9-实时消息模块-realtime)
 
 ---
 
@@ -46,19 +48,19 @@
 │  │  Supabase SDK 单例 (utils/supabase.ts)            │  │
 │  └───────────────────────┬───────────────────────────┘  │
 └──────────────────────────┼──────────────────────────────┘
-                           │
-                           ▼
-   ┌───────────────────────────────────────────────────┐
-   │                Supabase 后端服务                   │
-   │  ┌──────────┐ ┌───────────┐ ┌────────┐ ┌───────┐ │
-   │  │ GoTrue   │ │ PostgREST │ │Storage │ │Real-  │ │
-   │  │ (Auth)   │ │ (DB API)  │ │(File)  │ │time   │ │
-   │  └──────────┘ └─────┬─────┘ └────────┘ └───────┘ │
-   │                     │                              │
-   │              ┌──────▼──────┐                       │
-   │              │ PostgreSQL  │                       │
-   │              └─────────────┘                       │
-   └───────────────────────────────────────────────────┘
+                            │
+                            ▼
+    ┌───────────────────────────────────────────────────┐
+    │                Supabase 后端服务                   │
+    │  ┌──────────┐ ┌───────────┐ ┌────────┐ ┌───────┐ │
+    │  │ GoTrue   │ │ PostgREST │ │Storage │ │Real-  │ │
+    │  │ (Auth)   │ │ (DB API)  │ │(File)  │ │time   │ │
+    │  └──────────┘ └─────┬─────┘ └────────┘ └───────┘ │
+    │                     │                              │
+    │              ┌──────▼──────┐                       │
+    │              │ PostgreSQL  │                       │
+    │              └─────────────┘                       │
+    └───────────────────────────────────────────────────┘
 ```
 
 ### 文件职责
@@ -66,9 +68,11 @@
 | 文件 | 职责 |
 |------|------|
 | [`src/utils/supabase.ts`](../client-chat-tauri/src/utils/supabase.ts) | Supabase 客户端单例 |
-| [`src/services/chatService.ts`](../client-chat-tauri/src/services/chatService.ts) | 实现 `IChatService` 接口 |
+| [`src/services/chatService.ts`](../client-chat-tauri/src/services/chatService.ts) | 实现 `IChatService` 接口（Supabase 适配器） |
+| [`src/services/goChatService.ts`](../client-chat-tauri/src/services/goChatService.ts) | 实现 `IChatService` 接口（Go 后端适配器） |
+| [`src/services/index.ts`](../client-chat-tauri/src/services/index.ts) | 根据 `VITE_BACKEND_TYPE` 选择适配器，导出 `chatService` 单例 |
 | [`src/stores/auth.ts`](../client-chat-tauri/src/stores/auth.ts) | 认证状态管理 |
-| [`src/stores/chat.ts`](../client-chat-tauri/src/stores/chat.ts) | 聊天状态管理 |
+| [`src/stores/chat.ts`](../client-chat-tauri/src/stores/chat.ts) | 聊天状态管理（含在线状态、好友管理） |
 | [`src/router/index.ts`](../client-chat-tauri/src/router/index.ts) | 路由守卫鉴权 |
 
 ---
@@ -182,6 +186,7 @@ if (!data.session) return next('/login?redirect=' + to.path)
 | `nickname` | TEXT | 用户昵称 |
 | `employee_id` | TEXT | 7 位工号 |
 | `avatar_url` | TEXT | 头像 URL |
+| `is_online` | BOOLEAN | 是否在线（由 `go_online()` / `go_offline()` RPC 更新） |
 | `created_at` | TIMESTAMPTZ | 创建时间 |
 | `updated_at` | TIMESTAMPTZ | 更新时间 |
 
@@ -213,6 +218,22 @@ await supabase
 ```
 - 按昵称或工号模糊搜索（大小写不敏感）
 - 最多返回 20 条
+
+### 4.3 更新个人资料
+
+```ts
+// 更新昵称
+await supabase
+  .from('profiles')
+  .update({ nickname })
+  .eq('id', userId)
+
+// 更新头像 URL（先上传到 Storage）
+await supabase
+  .from('profiles')
+  .update({ avatar_url: publicUrl })
+  .eq('id', userId)
+```
 
 ---
 
@@ -290,7 +311,8 @@ await supabase
 ## 6. 好友关系模块 (Friendships)
 
 > 对应表：`public.friendships`  
-> 好友关系为**双向存储**：A 加 B → 同时写入 `(A, B)` 和 `(B, A)`。
+> 好友关系为**双向存储**：A 加 B → 同时写入 `(A, B)` 和 `(B, A)`。  
+> **实际实现**：使用 `add_friend()` / `remove_friend()` **RPC 函数**在数据库侧原子性完成双向操作。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -303,13 +325,15 @@ await supabase
 ### 6.1 获取好友列表
 
 ```ts
-// 关联查询好友资料
+// 关联查询好友资料（含在线状态）
 await supabase
   .from('friendships')
   .select(`
     id,
     friend_id,
-    friend:profiles!friendships_friend_id_fkey (id, nickname, employee_id, avatar_url)
+    friend:profiles!friendships_friend_id_fkey (
+      id, nickname, employee_id, avatar_url, is_online
+    )
   `)
   .eq('user_id', user.id)
 
@@ -318,28 +342,80 @@ await supabase
 - PostgREST Resource Embedding 语法关联 `profiles`
 - 返回 `Friend` 对象（含在线状态、未读计数、最后消息摘要）
 
-### 6.2 添加好友
+### 6.2 添加好友（RPC 调用）
 
 ```ts
-await supabase.from('friendships').insert({ user_id: me, friend_id: target })
-await supabase.from('friendships').insert({ user_id: target, friend_id: me })
-// 第二条失败时手动回滚已插入的第一条
+// 调用数据库 RPC 函数，原子性完成双向插入
+await supabase.rpc('add_friend', { p_friend_id: friendId })
+// → POST /rest/v1/rpc/add_friend
+// 返回 JSONB: { success: true, friendship: {...} }
 ```
 
-### 6.3 删除好友
+> `add_friend` RPC 内部自动执行两次 INSERT（`(me, friend)` 和 `(friend, me)`），调用方无需手动处理双向逻辑和事务回滚。
+
+### 6.3 删除好友（RPC 调用）
 
 ```ts
-await supabase.from('friendships').delete()
-  .eq('user_id', me).eq('friend_id', target)
-await supabase.from('friendships').delete()
-  .eq('user_id', target).eq('friend_id', me)
+await supabase.rpc('remove_friend', { p_friend_id: friendId })
+// → POST /rest/v1/rpc/remove_friend
+// 内部自动执行两次 DELETE，移除双向记录
 ```
 
 ---
 
-## 7. 文件存储模块 (Storage)
+## 7. 在线状态模块 (Online Status)
 
-### 7.1 存储桶规划
+### 7.1 数据来源
+
+- `profiles.is_online` (BOOLEAN)：由 RPC 函数更新
+- `profiles` 表已加入 Realtime 发布，在线状态变更可实时推送
+
+### 7.2 上线
+
+```ts
+await supabase.rpc('go_online')
+// → POST /rest/v1/rpc/go_online
+// SECURITY DEFINER 函数，设置调用者 is_online = true
+```
+
+**调用时机**：`chatStore.goOnline()` — 在聊天页面 `onMounted` 中调用
+
+### 7.3 下线
+
+```ts
+await supabase.rpc('go_offline')
+// → POST /rest/v1/rpc/go_offline
+// SECURITY DEFINER 函数，设置调用者 is_online = false
+```
+
+**调用时机**：`chatStore.goOffline()` — 在聊天页面 `onUnmounted` 中调用
+
+### 7.4 订阅在线状态变更
+
+```ts
+const channel = supabase
+  .channel('online-status')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'profiles',
+  }, (payload) => {
+    const { id, is_online } = payload.new
+    callback({ userId: id, isOnline: is_online })
+  })
+  .subscribe()
+
+// 取消订阅
+return () => { supabase.removeChannel(channel) }
+```
+
+**Store 层处理**：`chatStore.initOnlineStatusListener()` 在 `onMounted` 中调用，收到变更后更新好友列表中对应好友的在线状态。
+
+---
+
+## 8. 文件存储模块 (Storage)
+
+### 8.1 存储桶规划
 
 | Bucket | 用途 | 对应 msg_type | 大小限制 |
 |--------|------|-------------|---------|
@@ -347,7 +423,9 @@ await supabase.from('friendships').delete()
 | `chat-files` | 文件 | `file` | 50MB |
 | `chat-voice` | 语音 | `voice` | 5MB |
 
-### 7.2 上传文件
+> 存储桶由 [`04_init_storage_buckets.sql`](./04_init_storage_buckets.sql) 创建。
+
+### 8.2 上传文件
 
 ```ts
 // 1. 生成路径：{userId}/{timestamp}_{random}.{ext}
@@ -365,7 +443,7 @@ const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
 return data.publicUrl  // 存入 messages.content
 ```
 
-### 7.3 完整发送文件流程
+### 8.3 完整发送文件流程
 
 ```
 1. uploadFile(file, type) → 获取公开 URL
@@ -374,15 +452,18 @@ return data.publicUrl  // 存入 messages.content
 
 ---
 
-## 8. 实时消息模块 (Realtime)
+## 9. 实时消息模块 (Realtime)
 
-### 8.1 数据库前置条件
+### 9.1 数据库前置条件
 
 ```sql
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
 ```
 
-### 8.2 订阅消息变更
+> 已包含在 [`01_init_database.sql`](./01_init_database.sql) 和 [`02_add_online_status.sql`](./02_add_online_status.sql) 中。
+
+### 9.2 订阅消息变更
 
 ```ts
 const channel = supabase
@@ -401,7 +482,7 @@ const channel = supabase
 return () => { supabase.removeChannel(channel) }
 ```
 
-### 8.3 Store 层回调处理
+### 9.3 Store 层回调处理
 
 ```
 收到新消息 →
@@ -412,6 +493,21 @@ return () => { supabase.removeChannel(channel) }
 
 **防重复订阅**：`initRealtimeListener()` 检查 `unsubscribeRealtime` 是否已存在  
 **幂等**：push 前 `Array.some()` 检查 id 是否重复  
+
+### 9.4 订阅在线状态变更
+
+```ts
+const channel = supabase
+  .channel('online-status')
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'profiles',
+  }, (payload) => {
+    callback({ userId: payload.new.id, isOnline: payload.new.is_online })
+  })
+  .subscribe()
+```
 
 ---
 
@@ -427,15 +523,19 @@ return () => { supabase.removeChannel(channel) }
 | 6 | `from('profiles').insert()` | `POST /rest/v1/profiles` | 注册时创建资料 |
 | 7 | `from('profiles').select().eq()` | `GET /rest/v1/profiles` | 查询单个用户 |
 | 8 | `from('profiles').select().or()` | `GET /rest/v1/profiles` | 搜索用户 |
-| 9 | `from('messages').select().or().order()` | `GET /rest/v1/messages` | 历史消息 |
-| 10 | `from('messages').insert().select()` | `POST /rest/v1/messages` | 发送消息 |
-| 11 | `from('messages').update().in()` | `PATCH /rest/v1/messages` | 标记已读 |
-| 12 | `from('friendships').select().eq()` | `GET /rest/v1/friendships` | 好友列表 |
-| 13 | `from('friendships').insert()` | `POST /rest/v1/friendships` | 添加好友 |
-| 14 | `from('friendships').delete().eq()` | `DELETE /rest/v1/friendships` | 删除好友 |
-| 15 | `storage.from().upload()` | `POST /storage/v1/object/...` | 上传文件 |
-| 16 | `storage.from().getPublicUrl()` | 客户端拼接 | 获取公开 URL |
-| 17 | `channel().on().subscribe()` | WebSocket | 实时消息订阅 |
-| 18 | `removeChannel()` | WebSocket | 取消订阅 |
+| 9 | `from('profiles').update().eq()` | `PATCH /rest/v1/profiles` | 更新资料/头像 |
+| 10 | `from('messages').select().or().order()` | `GET /rest/v1/messages` | 历史消息 |
+| 11 | `from('messages').insert().select()` | `POST /rest/v1/messages` | 发送消息 |
+| 12 | `from('messages').update().in()` | `PATCH /rest/v1/messages` | 标记已读 |
+| 13 | `from('friendships').select().eq()` | `GET /rest/v1/friendships` | 好友列表 |
+| 14 | `supabase.rpc('add_friend', ...)` | `POST /rest/v1/rpc/add_friend` | 添加好友（RPC） |
+| 15 | `supabase.rpc('remove_friend', ...)` | `POST /rest/v1/rpc/remove_friend` | 删除好友（RPC） |
+| 16 | `supabase.rpc('go_online')` | `POST /rest/v1/rpc/go_online` | 设置上线 |
+| 17 | `supabase.rpc('go_offline')` | `POST /rest/v1/rpc/go_offline` | 设置下线 |
+| 18 | `storage.from().upload()` | `POST /storage/v1/object/...` | 上传文件 |
+| 19 | `storage.from().getPublicUrl()` | 客户端拼接 | 获取公开 URL |
+| 20 | `channel().on().subscribe()` | WebSocket | 实时消息订阅 |
+| 21 | `channel().on().subscribe()` | WebSocket | 在线状态订阅 |
+| 22 | `removeChannel()` | WebSocket | 取消订阅 |
 
 > **文档维护**：当 `chatService.ts` 中新增 Supabase SDK 调用时，请同步更新本文档。
