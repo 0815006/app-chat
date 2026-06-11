@@ -5,6 +5,7 @@ import type {
   Message,
   SendMessageParams,
   UploadParams,
+  UploadResult,
   User,
   Friend,
 } from '../types'
@@ -165,7 +166,7 @@ class GoChatService implements IChatService {
     return json.data as Message
   }
 
-  async uploadFile(_params: UploadParams): Promise<string> {
+  async uploadFile(_params: UploadParams): Promise<UploadResult> {
     const token = localStorage.getItem('go-chat-token')
     const formData = new FormData()
     formData.append('file', _params.file)
@@ -181,7 +182,11 @@ class GoChatService implements IChatService {
     if (!res.ok) throw new Error(`文件上传失败: HTTP ${res.status}`)
     const json = await res.json()
     if (json.code !== 200) throw new Error(`文件上传失败: ${json.message}`)
-    return json.data.url as string
+    return {
+      url: json.data.url as string,
+      file_name: _params.file.name,
+      file_size: _params.file.size,
+    }
   }
 
   async markAsRead(messageIds: string[]): Promise<void> {
@@ -194,6 +199,21 @@ class GoChatService implements IChatService {
       },
       body: JSON.stringify({ ids: messageIds }),
     })
+  }
+
+  async revokeMessage(messageId: string): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/messages/${messageId}/revoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (!res.ok) throw new Error(`撤回消息失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`撤回消息失败: ${json.message}`)
   }
 
   // ==================== 好友管理 ====================
@@ -247,6 +267,18 @@ class GoChatService implements IChatService {
     if (!res.ok) throw new Error(`搜索用户失败: HTTP ${res.status}`)
     const json = await res.json()
     if (json.code !== 200) throw new Error(`搜索用户失败: ${json.message}`)
+    return json.data as User[]
+  }
+
+  async fetchAllUsers(): Promise<User[]> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!res.ok) throw new Error(`获取用户列表失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`获取用户列表失败: ${json.message}`)
     return json.data as User[]
   }
 

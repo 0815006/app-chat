@@ -6,6 +6,7 @@ import type {
   Message,
   SendMessageParams,
   UploadParams,
+  UploadResult,
   User,
   Friend,
 } from '../types'
@@ -168,14 +169,19 @@ class SupabaseChatService implements IChatService {
 
   async sendMessage(msgData: SendMessageParams): Promise<Message> {
     const supabase = getSupabase()
+    const insertPayload: Record<string, unknown> = {
+      content: msgData.content,
+      msg_type: msgData.msg_type,
+      sender_id: msgData.sender_id,
+      receiver_id: msgData.receiver_id,
+    }
+    // 非文本消息携带文件元数据
+    if (msgData.file_name) insertPayload.file_name = msgData.file_name
+    if (msgData.file_size !== undefined) insertPayload.file_size = msgData.file_size
+
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        content: msgData.content,
-        msg_type: msgData.msg_type,
-        sender_id: msgData.sender_id,
-        receiver_id: msgData.receiver_id,
-      })
+      .insert(insertPayload)
       .select()
       .single()
 
@@ -198,9 +204,27 @@ class SupabaseChatService implements IChatService {
     }
   }
 
+  async revokeMessage(messageId: string): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        is_revoked: true,
+        content: '[消息已被撤回]',
+        msg_type: 'text',
+        file_name: null,
+        file_size: null,
+      })
+      .eq('id', messageId)
+
+    if (error) {
+      throw new Error(`撤回消息失败: ${error.message}`)
+    }
+  }
+
   // ==================== 文件上传 ====================
 
-  async uploadFile(params: UploadParams): Promise<string> {
+  async uploadFile(params: UploadParams): Promise<UploadResult> {
     // 客户端文件大小前置校验
     const maxSizes: Record<UploadParams['type'], number> = {
       image: 10 * 1024 * 1024,   // 10MB
@@ -232,7 +256,7 @@ class SupabaseChatService implements IChatService {
 
     if (error) {
       if (error.message?.includes('Bucket') && error.message?.includes('not found')) {
-        throw new Error(`存储桶 "${bucket}" 不存在，请先执行 docs/init_storage_buckets.sql 初始化`)
+        throw new Error(`存储桶 "${bucket}" 不存在，请先执行 docs/04_init_storage_buckets.sql 初始化`)
       }
       throw new Error(`文件上传失败: ${error.message}`)
     }
@@ -242,7 +266,11 @@ class SupabaseChatService implements IChatService {
       .from(bucket)
       .getPublicUrl(fileName)
 
-    return urlData.publicUrl
+    return {
+      url: urlData.publicUrl,
+      file_name: params.file.name,
+      file_size: params.file.size,
+    }
   }
 
   // ==================== 个人资料 ====================
@@ -472,6 +500,27 @@ class SupabaseChatService implements IChatService {
     }))
   }
 
+  async fetchAllUsers(): Promise<User[]> {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .limit(100)
+
+    if (error) {
+      throw new Error(`获取用户列表失败: ${error.message}`)
+    }
+
+    return (data ?? []).map((p: Record<string, unknown>) => ({
+      id: p.id as string,
+      employee_id: (p.employee_id as string) ?? '',
+      nickname: p.nickname as string,
+      email: '',
+      avatar_url: (p.avatar_url as string) ?? undefined,
+      status: 'offline' as const,
+    }))
+  }
+
   // ==================== 实时消息 ====================
 
   subscribeToMessages(callback: (message: Message) => void): () => void {
@@ -484,6 +533,15 @@ class SupabaseChatService implements IChatService {
         (payload) => {
           const newMsg = payload.new as Message
           callback(newMsg)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          // 消息 UPDATE 事件（用于撤回 / 编辑等场景）
+          const updatedMsg = payload.new as Message
+          callback(updatedMsg)
         }
       )
       .subscribe()

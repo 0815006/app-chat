@@ -5,6 +5,7 @@ import { chatService } from '../services'
 import { useAuthStore } from './auth'
 import { toast } from '../utils/toast'
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
+import { invoke } from '@tauri-apps/api/core'
 
 /** 每次分页拉取的消息条数 */
 const PAGE_SIZE = 20
@@ -102,6 +103,11 @@ export const useChatStore = defineStore('chat', () => {
     return chatService.searchUsers(query)
   }
 
+  /** 获取所有注册用户 */
+  async function fetchAllUsers() {
+    return chatService.fetchAllUsers()
+  }
+
   // ========== 消息操作 ==========
 
   /** 拉取第一页历史消息（切换好友时调用） */
@@ -118,7 +124,24 @@ export const useChatStore = defineStore('chat', () => {
         friendId,
         PAGE_SIZE
       )
-      messages.value = history
+
+      // 撤回消息处理：
+      // 1. 接收者侧：过滤掉已撤回的消息（不显示）
+      // 2. 发送者侧：保留，但替换为 "你撤回了一条消息"
+      const filtered: Message[] = []
+      for (const m of history) {
+        if (m.is_revoked) {
+          if (m.sender_id === authStore.currentUser.id) {
+            m.content = '你撤回了一条消息'
+            filtered.push(m)
+          }
+          // else: 接收者侧直接丢弃
+        } else {
+          filtered.push(m)
+        }
+      }
+
+      messages.value = filtered
       hasMore.value = more
 
       // 标记对方发来的未读消息为已读
@@ -140,8 +163,6 @@ export const useChatStore = defineStore('chat', () => {
     if (isLoadingMore.value || !hasMore.value || messages.value.length === 0) return 0
 
     isLoadingMore.value = true
-    // 记录加载前的滚动高度，用于加载后保持位置
-    const prevScrollHeight = 0 // 由 ChatWindow 在调用前记录
 
     try {
       // 以当前最早一条消息的 created_at 作为游标
@@ -153,18 +174,61 @@ export const useChatStore = defineStore('chat', () => {
         oldestMsg.created_at
       )
 
-      if (olderMsgs.length > 0) {
+      // 撤回消息处理（同 loadHistory 逻辑）
+      const filtered: Message[] = []
+      for (const m of olderMsgs) {
+        if (m.is_revoked) {
+          if (m.sender_id === authStore.currentUser.id) {
+            m.content = '你撤回了一条消息'
+            filtered.push(m)
+          }
+        } else {
+          filtered.push(m)
+        }
+      }
+
+      if (filtered.length > 0) {
         // 前置插入到消息列表头部
-        messages.value = [...olderMsgs, ...messages.value]
+        messages.value = [...filtered, ...messages.value]
       }
       hasMore.value = more
 
-      return olderMsgs.length
+      return filtered.length
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载历史消息失败')
       return 0
     } finally {
       isLoadingMore.value = false
+    }
+  }
+
+  /** 仅从本地 UI 移除消息（右键“删除”） */
+  function deleteMessageLocally(messageId: string) {
+    const idx = messages.value.findIndex((m) => m.id === messageId)
+    if (idx !== -1) {
+      messages.value.splice(idx, 1)
+    }
+  }
+
+  /** 撤回消息 — 仅发送者本人可调用，对方窗口通过 Realtime UPDATE 同步移除 */
+  async function revokeMessage(messageId: string) {
+    try {
+      await chatService.revokeMessage(messageId)
+      toast.success('撤回成功')
+      // 发送者侧：本地消息原地替换为 is_revoked 标记（Realtime UPDATE 回来之前先乐观更新）
+      const idx = messages.value.findIndex((m) => m.id === messageId)
+      if (idx !== -1) {
+        messages.value[idx] = {
+          ...messages.value[idx],
+          is_revoked: true,
+          content: '你撤回了一条消息',
+          msg_type: 'text',
+          file_name: undefined,
+          file_size: undefined,
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '撤回失败')
     }
   }
 
@@ -195,24 +259,51 @@ export const useChatStore = defineStore('chat', () => {
       throw new Error('缺少当前用户或选中好友')
     }
 
-    // 上传文件获取 URL
-    const url = await chatService.uploadFile({
+    // 上传文件获取 URL + 元数据
+    const result = await chatService.uploadFile({
       file,
       userId: authStore.currentUser.id,
       type,
     })
 
-    // 发送带 URL 的消息
-    await sendMessage(url, type)
+    // 发送带 URL 的消息，同时携带文件名和大小
+    const msgData = {
+      content: result.url,
+      msg_type: type,
+      sender_id: authStore.currentUser.id,
+      receiver_id: activeFriend.value.friend_id,
+      file_name: result.file_name,
+      file_size: result.file_size,
+    }
+    const msg = await chatService.sendMessage(msgData).catch((e) => {
+      toast.error(e instanceof Error ? e.message : '发送消息失败')
+      throw e
+    })
+
+    messages.value.push(msg)
   }
 
   // ========== 实时监听 ==========
 
   /**
-   * 发送系统原生通知（窗口未聚焦时）
+   * 触发任务栏图标闪烁（窗口最小化或后台时）
+   */
+  async function flashTaskbar() {
+    try {
+      await invoke('flash_window')
+    } catch {
+      // 在非 Tauri 环境（浏览器开发）会报错，静默忽略
+    }
+  }
+
+  /**
+   * 发送系统原生通知 + 任务栏闪烁（窗口未聚焦时）
    * 仅当通知权限已授予时发送；权限未授予时静默跳过
    */
   async function sendSystemNotification(msg: Message) {
+    // 闪烁任务栏
+    await flashTaskbar()
+
     try {
       let permitted = await isPermissionGranted()
       if (!permitted) {
@@ -299,18 +390,37 @@ export const useChatStore = defineStore('chat', () => {
           newMsg.sender_id === activeFriend.value.friend_id)
 
       if (isCurrentChat) {
-        // 幂等：防止重复插入相同 id 的消息
-        if (!messages.value.some((m) => m.id === newMsg.id)) {
-          messages.value.push(newMsg)
+        const existingIdx = messages.value.findIndex((m) => m.id === newMsg.id)
+
+        if (newMsg.is_revoked) {
+          if (newMsg.sender_id === authStore.currentUser.id) {
+            // 发送者侧：保留消息，标记为已撤回（显示 "你撤回了一条消息"）
+            if (existingIdx !== -1) {
+              messages.value[existingIdx] = { ...newMsg, content: '你撤回了一条消息' }
+            }
+          } else {
+            // 接收者侧：直接从列表中移除
+            if (existingIdx !== -1) {
+              messages.value.splice(existingIdx, 1)
+            }
+          }
+        } else if (existingIdx !== -1) {
+          // 非撤回的 UPDATE：原地替换
+          messages.value[existingIdx] = newMsg
+        } else {
+          // INSERT 事件：幂等追加
+          if (!messages.value.some((m) => m.id === newMsg.id)) {
+            messages.value.push(newMsg)
+          }
         }
 
-        // 对方发来的消息立即标记为已读
-        if (newMsg.sender_id === activeFriend.value!.friend_id) {
+        // 对方发来的 INSERT 消息立即标记为已读；撤回的 UPDATE 不重复标记
+        if (existingIdx === -1 && newMsg.sender_id === activeFriend.value!.friend_id) {
           chatService.markAsRead([newMsg.id])
         }
       }
 
-      // 更新好友列表的最后一条消息 + 未读计数
+      // 撤回消息更新好友列表最后一条消息摘要
       const friendIndex = friends.value.findIndex(
         (f) =>
           f.friend_id === newMsg.sender_id ||
@@ -318,12 +428,20 @@ export const useChatStore = defineStore('chat', () => {
       )
       if (friendIndex !== -1) {
         const f = { ...friends.value[friendIndex] }
-        f.last_message = newMsg.content
-        f.last_message_type = newMsg.msg_type
+
+        if (newMsg.is_revoked) {
+          // 撤回：摘要显示为 "[消息已被撤回]"
+          f.last_message = '[消息已被撤回]'
+          f.last_message_type = 'text' as Message['msg_type']
+        } else if (!messages.value.some((m) => m.id === newMsg.id && m.is_revoked)) {
+          // 非撤回的新消息才更新摘要
+          f.last_message = newMsg.content
+          f.last_message_type = newMsg.msg_type
+        }
         f.last_message_at = newMsg.created_at
 
-        // 如果不是当前活跃聊天且消息是对方发的，增加未读计数
-        if (!isCurrentChat && newMsg.sender_id !== authStore.currentUser.id) {
+        // 如果不是当前活跃聊天且消息是对方发的，增加未读计数（撤回消息不增加未读）
+        if (!isCurrentChat && newMsg.sender_id !== authStore.currentUser.id && !newMsg.is_revoked) {
           f.unread_count = (f.unread_count ?? 0) + 1
         }
 
@@ -333,8 +451,9 @@ export const useChatStore = defineStore('chat', () => {
         friends.value.unshift(moved)
       }
 
-      // ===== 系统通知：窗口未聚焦时推送 =====
+      // ===== 系统通知：窗口未聚焦时推送（撤回消息不发通知） =====
       if (
+        !newMsg.is_revoked &&
         newMsg.sender_id !== authStore.currentUser.id &&
         document.visibilityState !== 'visible'
       ) {
@@ -400,11 +519,14 @@ export const useChatStore = defineStore('chat', () => {
     addFriend,
     removeFriend,
     searchUsers,
+    fetchAllUsers,
     // 消息操作
     loadHistory,
     loadMoreHistory,
     sendMessage,
     sendFile,
+    deleteMessageLocally,
+    revokeMessage,
     // 实时监听
     initRealtimeListener,
     destroyRealtimeListener,

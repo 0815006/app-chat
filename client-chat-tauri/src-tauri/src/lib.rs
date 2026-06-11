@@ -9,12 +9,33 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+/// 触发 Windows 任务栏图标闪烁（调用 request_user_attention）
+#[tauri::command]
+fn flash_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        // Tauri 2.x 的 request_user_attention 对应 Windows FlashWindowEx
+        // level: 1 = Informational（持续闪烁直到窗口获得焦点）
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
+/// 在 Windows 资源管理器中定位并选中指定文件
+/// 等效于命令行：explorer /select, "C:\path\to\file"
+#[tauri::command]
+fn show_in_folder(path: String) {
+    std::process::Command::new("explorer")
+        .args(["/select,", &path])
+        .spawn()
+        .ok();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // ========== 系统托盘 ==========
             let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
@@ -55,7 +76,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, flash_window, show_in_folder])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

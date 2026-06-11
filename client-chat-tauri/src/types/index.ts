@@ -32,6 +32,12 @@ export interface Message {
   created_at: string
   /** 是否已读 */
   is_read?: boolean
+  /** 是否已撤回 */
+  is_revoked?: boolean
+  /** 原始文件名（仅 file/image/voice 类型使用） */
+  file_name?: string
+  /** 文件字节数（仅 file/image/voice 类型使用） */
+  file_size?: number
 }
 
 /** 好友关系 */
@@ -83,6 +89,20 @@ export interface SendMessageParams {
   msg_type: Message['msg_type']
   sender_id: string
   receiver_id: string
+  /** 原始文件名（仅 file/image/voice 类型使用） */
+  file_name?: string
+  /** 文件字节数（仅 file/image/voice 类型使用） */
+  file_size?: number
+}
+
+/** 文件上传结果 */
+export interface UploadResult {
+  /** 公开访问 URL */
+  url: string
+  /** 原始文件名 */
+  file_name: string
+  /** 文件字节数 */
+  file_size: number
 }
 
 /** 文件上传参数 */
@@ -103,9 +123,10 @@ export interface IChatService {
   /** 分页拉取历史消息；limit 默认 20，返回 [消息列表, 是否还有更多] */
   fetchHistory(senderId: string, receiverId: string, limit?: number, before?: string): Promise<[Message[], boolean]>
   sendMessage(msgData: SendMessageParams): Promise<Message>
-  uploadFile(params: UploadParams): Promise<string>
+  uploadFile(params: UploadParams): Promise<UploadResult>
   markAsRead(messageIds: string[]): Promise<void>
   searchUsers(query: string): Promise<User[]>
+  fetchAllUsers(): Promise<User[]>
   addFriend(friendId: string): Promise<Friend>
   removeFriend(friendId: string): Promise<void>
   fetchFriends(): Promise<Friend[]>
@@ -116,6 +137,8 @@ export interface IChatService {
   goOffline(): Promise<void>
   /** 订阅 profiles 表 is_online 字段变更，回调传入 {userId, isOnline} */
   subscribeToOnlineStatus(callback: (event: { userId: string; isOnline: boolean }) => void): () => void
+  /** 撤回消息 — 调用方为发送者本人 */
+  revokeMessage(messageId: string): Promise<void>
   /** 更新用户昵称，返回更新后的完整 User */
   updateProfile(nickname: string): Promise<User>
   /** 上传头像图片，返回新的 avatar_url */
