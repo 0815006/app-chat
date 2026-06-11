@@ -1,30 +1,43 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { Window } from '@tauri-apps/api/window'
 
-const appWindow = getCurrentWindow()
+/** 懒获取 Tauri 窗口实例（避免模块顶层调用时 __TAURI_INTERNALS__ 未就绪） */
+let _win: Window | null = null
+function getWin(): Window {
+  if (!_win) {
+    _win = getCurrentWindow()
+  }
+  return _win
+}
+
+/** 检测是否运行在 Tauri 环境 */
+const isTauri = !!(window as any).__TAURI_INTERNALS__
 
 async function minimize() {
-  await appWindow.minimize()
+  if (!isTauri) { console.log('[TitleBar] 非 Tauri 环境，跳过 minimize'); return }
+  try { await getWin().minimize() } catch (e) { console.error('[TitleBar] minimize 失败:', e) }
 }
 
 async function maximize() {
-  await appWindow.toggleMaximize()
+  if (!isTauri) { console.log('[TitleBar] 非 Tauri 环境，跳过 maximize'); return }
+  try { await getWin().toggleMaximize() } catch (e) { console.error('[TitleBar] maximize 失败:', e) }
 }
 
 async function close() {
-  await appWindow.close()
+  if (!isTauri) { console.log('[TitleBar] 非 Tauri 环境，跳过 close'); return }
+  try { await getWin().close() } catch (e) { console.error('[TitleBar] close 失败:', e) }
 }
 </script>
 
 <template>
   <div
-    data-tauri-drag-region
-    class="fixed top-0 left-0 right-0 h-8 z-50 flex items-center justify-between select-none bg-[#0f0f23]"
+    class="h-8 flex items-center justify-between select-none bg-[#0f0f23] shrink-0"
   >
-    <!-- 拖拽区域 -->
+    <!-- 拖拽区域（仅此处可拖拽窗口） -->
     <div data-tauri-drag-region class="flex-1 h-full"></div>
 
-    <!-- 窗口控制按钮 -->
+    <!-- 窗口控制按钮（不得嵌套在 data-tauri-drag-region 内，否则 @click 被吞） -->
     <div class="flex items-center h-full shrink-0">
       <button
         class="w-10 h-full flex items-center justify-center text-[#718096] hover:bg-[#ffffff0a] hover:text-[#a0aec0] transition-colors cursor-pointer"

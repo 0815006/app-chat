@@ -5,9 +5,11 @@ go 1.22
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/uuid v1.6.0
 	github.com/olahol/melody v1.2.1
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/viper v1.19.0
+	golang.org/x/crypto v0.31.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.25.12
 )
@@ -51,7 +53,6 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect

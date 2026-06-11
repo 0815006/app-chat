@@ -3,6 +3,9 @@ import { useAuthStore } from '../../stores/auth'
 import Avatar from '../../components/Avatar.vue'
 
 const authStore = useAuthStore()
+
+const backendType = import.meta.env.VITE_BACKEND_TYPE as 'SUPABASE' | 'GO'
+const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
 </script>
 
 <template>
@@ -12,12 +15,12 @@ const authStore = useAuthStore()
     <!-- 后端环境指示灯（编译时静态决定，不可点击切换） -->
     <div
       class="relative w-12 h-12 rounded-2xl flex items-center justify-center bg-[#23204a] cursor-default"
-      :title="'当前后端：' + (import.meta.env.VITE_BACKEND_TYPE === 'GO' ? 'Go 自建后端' : 'Supabase')"
+      :title="'当前后端：' + backendLabel"
     >
       <span class="text-lg font-bold text-[#a0aec0]">Go</span>
       <span
         class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#17132b]"
-        :class="import.meta.env.VITE_BACKEND_TYPE === 'GO' ? 'bg-blue-400' : 'bg-green-400'"
+        :class="backendType === 'GO' ? 'bg-blue-400' : 'bg-green-400'"
       ></span>
     </div>
 
