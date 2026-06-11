@@ -107,4 +107,14 @@ export interface IChatService {
   removeFriend(friendId: string): Promise<void>
   fetchFriends(): Promise<Friend[]>
   subscribeToMessages(callback: (message: Message) => void): () => void
+  /** 标记当前用户上线 */
+  goOnline(): Promise<void>
+  /** 标记当前用户离线 */
+  goOffline(): Promise<void>
+  /** 订阅 profiles 表 is_online 字段变更，回调传入 {userId, isOnline} */
+  subscribeToOnlineStatus(callback: (event: { userId: string; isOnline: boolean }) => void): () => void
+  /** 更新用户昵称，返回更新后的完整 User */
+  updateProfile(nickname: string): Promise<User>
+  /** 上传头像图片，返回新的 avatar_url */
+  updateAvatar(file: File): Promise<string>
 }

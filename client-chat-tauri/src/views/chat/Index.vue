@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import TitleBar from '../../components/TitleBar.vue'
+import AddFriendDialog from '../../components/chat/AddFriendDialog.vue'
+import UserProfileDialog from '../../components/chat/UserProfileDialog.vue'
 import Sidebar from './Sidebar.vue'
 import FriendList from './FriendList.vue'
 import ChatWindow from './ChatWindow.vue'
@@ -52,16 +54,25 @@ onMounted(async () => {
     return
   }
 
+  // 标记当前用户上线
+  await chatStore.goOnline()
+
   // 加载好友列表
   await chatStore.loadFriends()
 
   // 初始化实时消息监听
   chatStore.initRealtimeListener()
+
+  // 初始化在线状态监听（订阅 profiles 表 is_online 变更）
+  chatStore.initOnlineStatusListener()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
+  // 标记离线（浏览器关闭/页面离开）
+  chatStore.goOffline()
   chatStore.destroyRealtimeListener()
+  chatStore.destroyOnlineStatusListener()
 })
 </script>
 
@@ -77,5 +88,17 @@ onUnmounted(() => {
       <ChatWindow />
       <InputArea />
     </div>
+
+    <!-- 添加好友弹窗（由 store.showAddFriendDialog 控制，Sidebar / FriendList 均可触发） -->
+    <AddFriendDialog
+      :visible="chatStore.showAddFriendDialog"
+      @close="chatStore.showAddFriendDialog = false"
+    />
+
+    <!-- 个人信息弹窗（由 authStore.showProfileDialog 控制，点击头像触发） -->
+    <UserProfileDialog
+      :visible="authStore.showProfileDialog"
+      @close="authStore.showProfileDialog = false"
+    />
   </div>
 </template>

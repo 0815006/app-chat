@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', () => {
   const currentUser = ref<User | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  /** 个人信息弹窗显示状态 */
+  const showProfileDialog = ref(false)
 
   /** 视图层通过 authStore.user 访问当前用户 */
   const user = computed(() => currentUser.value)
@@ -68,5 +70,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { currentUser, user, isLoading, error, login, register, logout, restoreSession }
+  /** 更新昵称 */
+  async function updateProfile(nickname: string) {
+    const user = await chatService.updateProfile(nickname)
+    currentUser.value = user
+  }
+
+  /** 上传头像 */
+  async function updateAvatar(file: File): Promise<string> {
+    const url = await chatService.updateAvatar(file)
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, avatar_url: url }
+    }
+    return url
+  }
+
+  return {
+    currentUser, user, isLoading, error,
+    showProfileDialog,
+    login, register, logout, restoreSession,
+    updateProfile, updateAvatar,
+  }
 })

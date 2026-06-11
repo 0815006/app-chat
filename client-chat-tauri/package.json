@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@vue/tsconfig": "^0.9.1",
     "pinia": "^3.0.3",
@@ -21,7 +22,6 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.6",
-    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^25.9.2",
     "@vitejs/plugin-vue": "^6.0.1",

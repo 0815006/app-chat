@@ -88,6 +88,9 @@ class SupabaseChatService implements IChatService {
   }
 
   async logout(): Promise<void> {
+    // 先标记离线，再注销 session（顺序重要：signOut 后 auth.uid() 不可用）
+    await this.goOffline()
+
     const supabase = getSupabase()
     const { error } = await supabase.auth.signOut()
     if (error) {
@@ -220,6 +223,67 @@ class SupabaseChatService implements IChatService {
     return urlData.publicUrl
   }
 
+  // ==================== 个人资料 ====================
+
+  async updateProfile(nickname: string): Promise<User> {
+    const supabase = getSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('未登录')
+
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .update({ nickname, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select('id, nickname, employee_id, avatar_url')
+      .single()
+
+    if (error) throw new Error(`更新个人信息失败: ${error.message}`)
+
+    return {
+      id: user.id,
+      employee_id: (profile as Record<string, unknown>)?.employee_id as string ?? '',
+      nickname: (profile as Record<string, unknown>)?.nickname as string ?? user.email ?? '',
+      avatar_url: (profile as Record<string, unknown>)?.avatar_url as string ?? undefined,
+      email: user.email,
+      status: 'online',
+    }
+  }
+
+  async updateAvatar(file: File): Promise<string> {
+    const supabase = getSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('未登录')
+
+    // 校验
+    if (file.size > 5 * 1024 * 1024) throw new Error('头像图片不能超过 5MB')
+    if (!file.type.startsWith('image/')) throw new Error('仅支持图片格式')
+
+    const ext = file.name.split('.').pop() ?? 'png'
+    const fileName = `avatars/${user.id}_${Date.now()}.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('chat-files')
+      .upload(fileName, file, { upsert: true, contentType: file.type })
+
+    if (uploadError) throw new Error(`头像上传失败: ${uploadError.message}`)
+
+    const { data: urlData } = supabase.storage
+      .from('chat-files')
+      .getPublicUrl(fileName)
+
+    const avatarUrl = urlData.publicUrl
+
+    // 更新 profiles 表
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    if (updateError) throw new Error(`更新头像记录失败: ${updateError.message}`)
+
+    return avatarUrl
+  }
+
   // ==================== 好友管理 ====================
 
   async fetchFriends(): Promise<Friend[]> {
@@ -242,7 +306,8 @@ class SupabaseChatService implements IChatService {
           id,
           nickname,
           employee_id,
-          avatar_url
+          avatar_url,
+          is_online
         )
       `)
       .eq('user_id', user.id)
@@ -276,7 +341,7 @@ class SupabaseChatService implements IChatService {
           name: (friendProfile as Record<string, unknown> | null)?.nickname as string ?? '未知用户',
           employee_id: (friendProfile as Record<string, unknown> | null)?.employee_id as string ?? '',
           avatar_url: (friendProfile as Record<string, unknown> | null)?.avatar_url as string ?? undefined,
-          online: false,
+          online: (friendProfile as Record<string, unknown> | null)?.is_online as boolean ?? false,
           last_message: lastMsg?.content as string | undefined,
           last_message_at: lastMsg?.created_at as string | undefined,
           unread_count: 0,
@@ -289,65 +354,39 @@ class SupabaseChatService implements IChatService {
 
   async addFriend(friendId: string): Promise<Friend> {
     const supabase = getSupabase()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      throw new Error('未登录')
-    }
-
-    // 双向插入好友关系
-    const { error: err1 } = await supabase.from('friendships').insert({
-      user_id: user.id,
-      friend_id: friendId,
+    // 使用 RPC 函数（SECURITY DEFINER 绕过 RLS 双向插入限制）
+    const { data, error } = await supabase.rpc('add_friend', {
+      p_friend_id: friendId,
     })
 
-    if (err1) {
-      throw new Error(`添加好友失败: ${err1.message}`)
+    if (error) {
+      throw new Error(`添加好友失败: ${error.message}`)
     }
 
-    const { error: err2 } = await supabase.from('friendships').insert({
-      user_id: friendId,
-      friend_id: user.id,
-    })
-
-    if (err2) {
-      // 回滚第一条
-      await supabase.from('friendships').delete().eq('user_id', user.id).eq('friend_id', friendId)
-      throw new Error(`添加好友失败: ${err2.message}`)
-    }
-
-    // 获取好友信息
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', friendId)
-      .single()
-
+    // RPC 函数返回 JSONB，Supabase SDK 自动解析为对象
+    const result = data as Record<string, unknown>
     return {
-      id: '',
-      friend_id: friendId,
-      name: profile?.nickname ?? '未知用户',
-      employee_id: profile?.employee_id ?? '',
-      avatar_url: profile?.avatar_url ?? undefined,
+      id: (result.id as string) ?? '',
+      friend_id: (result.friend_id as string) ?? friendId,
+      name: (result.name as string) ?? '未知用户',
+      employee_id: (result.employee_id as string) ?? '',
+      avatar_url: (result.avatar_url as string) ?? undefined,
       online: false,
     }
   }
 
   async removeFriend(friendId: string): Promise<void> {
     const supabase = getSupabase()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      throw new Error('未登录')
+    // 使用 RPC 函数（SECURITY DEFINER 绕过 RLS 双向删除限制）
+    const { error } = await supabase.rpc('remove_friend', {
+      p_friend_id: friendId,
+    })
+
+    if (error) {
+      throw new Error(`删除好友失败: ${error.message}`)
     }
-
-    // 双向删除
-    await supabase.from('friendships').delete().eq('user_id', user.id).eq('friend_id', friendId)
-    await supabase.from('friendships').delete().eq('user_id', friendId).eq('friend_id', user.id)
   }
 
   async searchUsers(query: string): Promise<User[]> {
@@ -384,6 +423,59 @@ class SupabaseChatService implements IChatService {
         (payload) => {
           const newMsg = payload.new as Message
           callback(newMsg)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }
+
+  // ==================== 在线状态（基于数据库持久化 + Realtime） ====================
+
+  async goOnline(): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('go_online')
+    if (error) {
+      // 如果 RPC 函数还未创建（首次部署），退化到直接 UPDATE（依赖 RLS 策略）
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('profiles').update({ is_online: true, updated_at: new Date().toISOString() }).eq('id', user.id)
+      }
+    }
+  }
+
+  async goOffline(): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('go_offline')
+    if (error) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('profiles').update({ is_online: false, updated_at: new Date().toISOString() }).eq('id', user.id)
+      }
+    }
+  }
+
+  subscribeToOnlineStatus(callback: (event: { userId: string; isOnline: boolean }) => void): () => void {
+    const supabase = getSupabase()
+    const channel = supabase
+      .channel('profiles-online-status')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const old = payload.old as Record<string, unknown>
+          const newRow = payload.new as Record<string, unknown>
+          const userId = newRow.id as string
+
+          // 仅当 is_online 字段变化时回调
+          if (old.is_online !== newRow.is_online && userId) {
+            callback({
+              userId,
+              isOnline: newRow.is_online as boolean,
+            })
+          }
         }
       )
       .subscribe()

@@ -15,6 +15,9 @@ export const useChatStore = defineStore('chat', () => {
   const isLoadingFriends = ref(false)
   const currentBackend = ref<ChatServiceType>('supabase')
 
+  /** 添加好友弹窗显示状态（跨组件共享） */
+  const showAddFriendDialog = ref(false)
+
   // ========== 派生状态 ==========
 
   /** 当前选中好友的 friend_id（视图层便捷访问） */
@@ -34,6 +37,7 @@ export const useChatStore = defineStore('chat', () => {
 
   // 存储取消订阅的函数
   let unsubscribeRealtime: (() => void) | null = null
+  let unsubscribeOnlineStatus: (() => void) | null = null
 
   // ========== 后端切换 ==========
 
@@ -183,6 +187,49 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 标记当前用户上线 */
+  async function goOnline() {
+    try {
+      await chatService.goOnline()
+    } catch {
+      // 静默失败：在线状态不是关键路径，不应阻塞 UI
+    }
+  }
+
+  /** 标记当前用户离线 */
+  async function goOffline() {
+    try {
+      await chatService.goOffline()
+    } catch {
+      // 静默失败
+    }
+  }
+
+  /** 初始化在线状态监听（订阅 profiles 表 is_online 变更） */
+  function initOnlineStatusListener() {
+    if (unsubscribeOnlineStatus) {
+      return
+    }
+
+    unsubscribeOnlineStatus = chatService.subscribeToOnlineStatus(
+      (event: { userId: string; isOnline: boolean }) => {
+        // 更新对应好友的在线状态
+        const index = friends.value.findIndex((f) => f.friend_id === event.userId)
+        if (index !== -1 && friends.value[index].online !== event.isOnline) {
+          friends.value[index] = { ...friends.value[index], online: event.isOnline }
+        }
+      }
+    )
+  }
+
+  /** 取消在线状态订阅 */
+  function destroyOnlineStatusListener() {
+    if (unsubscribeOnlineStatus) {
+      unsubscribeOnlineStatus()
+      unsubscribeOnlineStatus = null
+    }
+  }
+
   /** 初始化实时消息监听 */
   function initRealtimeListener() {
     if (unsubscribeRealtime) {
@@ -260,6 +307,7 @@ export const useChatStore = defineStore('chat', () => {
     isLoading,
     isLoadingFriends,
     currentBackend,
+    showAddFriendDialog,
     // 派生
     onlineCount,
     unreadCounts,
@@ -278,6 +326,10 @@ export const useChatStore = defineStore('chat', () => {
     // 实时监听
     initRealtimeListener,
     destroyRealtimeListener,
+    goOnline,
+    goOffline,
+    initOnlineStatusListener,
+    destroyOnlineStatusListener,
     scrollToBottom,
   }
 })

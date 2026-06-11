@@ -70,6 +70,8 @@ class GoChatService implements IChatService {
   }
 
   async logout(): Promise<void> {
+    // 先标记离线
+    await this.goOffline()
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -269,6 +271,29 @@ class GoChatService implements IChatService {
         this.ws = null
       }
     }
+  }
+
+  // ==================== 在线状态 ====================
+
+  async goOnline(): Promise<void> {
+    // Go 后端可通过 HTTP PUT /api/users/online 实现
+  }
+
+  async goOffline(): Promise<void> {
+    // Go 后端可通过 HTTP PUT /api/users/offline 实现
+  }
+
+  subscribeToOnlineStatus(_callback: (event: { userId: string; isOnline: boolean }) => void): () => void {
+    // Go 后端暂不支持，返回空操作
+    return () => {}
+  }
+
+  async updateProfile(_nickname: string): Promise<User> {
+    throw new Error('Go 后端暂不支持修改个人信息')
+  }
+
+  async updateAvatar(_file: File): Promise<string> {
+    throw new Error('Go 后端暂不支持上传头像')
   }
 }
 

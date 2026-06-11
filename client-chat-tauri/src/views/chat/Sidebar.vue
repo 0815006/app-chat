@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useChatStore } from '../../stores/chat'
 import Avatar from '../../components/Avatar.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
+const chatStore = useChatStore()
 
 const backendType = import.meta.env.VITE_BACKEND_TYPE as 'SUPABASE' | 'GO'
 const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
+
+/** 退出登录并跳转到登录页 */
+async function handleLogout() {
+  await authStore.logout()
+  router.replace('/login')
+}
 </script>
 
 <template>
@@ -26,16 +36,21 @@ const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
 
     <div class="w-8 h-px bg-[#2a1f5e] my-2"></div>
 
-    <!-- 头像 -->
+    <!-- 头像（点击弹出个人信息弹窗） -->
+    <!-- 直接使用 currentUser 而非 user computed，确保头像 URL 更新后立即响应 -->
     <Avatar
-      :name="authStore.user?.nickname ?? authStore.user?.email ?? ''"
+      :name="authStore.currentUser?.nickname ?? authStore.currentUser?.email ?? ''"
+      :avatar-url="authStore.currentUser?.avatar_url"
+      :key="authStore.currentUser?.avatar_url ?? 'no-avatar'"
+      clickable
+      @click="authStore.showProfileDialog = true"
     />
 
     <!-- 登出 -->
     <button
       class="w-12 h-12 rounded-2xl flex items-center justify-center text-[#718096] transition-all duration-200 cursor-pointer hover:bg-red-500/10 hover:text-[#fc8181] hover:rounded-xl mt-auto"
       title="退出登录"
-      @click="authStore.logout()"
+      @click="handleLogout"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/>
