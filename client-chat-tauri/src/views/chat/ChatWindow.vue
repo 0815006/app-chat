@@ -12,6 +12,9 @@ const containerRef = ref<HTMLDivElement>()
 /** 时间分隔线阈值：5 分钟 */
 const TIME_GAP_MS = 5 * 60 * 1000
 
+/** 正在加载更多消息（滚动到顶部时） */
+const isPullingMore = ref(false)
+
 /**
  * 在相邻消息间隔 >5 分钟的位置插入分隔线
  * 返回 "(消息 | 'time-separator')[]"
@@ -40,16 +43,52 @@ const displayMessages = computed(() => {
   return result
 })
 
-// 切换好友 / 新消息时自动滚底
+// 切换好友 / 新消息时自动滚底（但不包括加载更多触发的消息变化）
 watch(
   () => [chatStore.activeFriendId, chatStore.messages.length] as const,
-  async () => {
+  async (_new, _old) => {
+    // 如果是加载更多触发的（hasMore 从 true 变成了变化），不自动滚底
+    if (isPullingMore.value) return
+
     await nextTick()
     if (containerRef.value) {
       containerRef.value.scrollTop = containerRef.value.scrollHeight
     }
   }
 )
+
+/** 监听滚动到顶部，触发加载更多 */
+function onScroll() {
+  if (!containerRef.value) return
+  const el = containerRef.value
+
+  // 滚动到顶部（< 60px 阈值）时触发加载更多
+  if (el.scrollTop <= 60 && !isPullingMore.value && chatStore.hasMore && !chatStore.isLoadingMore) {
+    pullMoreHistory()
+  }
+}
+
+/** 加载更早的历史消息，并保持滚动位置不弹跳 */
+async function pullMoreHistory() {
+  if (!containerRef.value || isPullingMore.value || !chatStore.hasMore) return
+
+  isPullingMore.value = true
+  const el = containerRef.value
+  // 记录加载前的内容高度
+  const prevScrollHeight = el.scrollHeight
+
+  const count = await chatStore.loadMoreHistory()
+
+  if (count > 0) {
+    await nextTick()
+    // 加载后 scrollHeight 变大，差值即为新增内容的高度
+    // 把 scrollTop 设置为这个差值，使视口内容保持不变
+    const newScrollHeight = el.scrollHeight
+    el.scrollTop = newScrollHeight - prevScrollHeight
+  }
+
+  isPullingMore.value = false
+}
 
 function isSeparator(item: Message | { _sep: boolean; time: Date }): item is { _sep: true; time: Date } {
   return '_sep' in item
@@ -61,7 +100,7 @@ function formatSeparatorTime(date: Date): string {
 </script>
 
 <template>
-  <main v-if="chatStore.activeFriendId" class="flex flex-col bg-[#1a1a2e]">
+  <main v-if="chatStore.activeFriendId" class="flex flex-col overflow-hidden bg-[#1a1a2e]">
     <!-- 顶栏 -->
     <header class="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3748] bg-[#1e1935] shrink-0">
       <div class="flex items-center gap-3">
@@ -82,7 +121,26 @@ function formatSeparatorTime(date: Date): string {
     </header>
 
     <!-- 消息区 -->
-    <div ref="containerRef" class="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar flex flex-col gap-0.5">
+    <div
+      ref="containerRef"
+      class="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar flex flex-col gap-0.5"
+      @scroll="onScroll"
+    >
+      <!-- 顶部加载更多指示器 -->
+      <div
+        v-if="chatStore.isLoadingMore"
+        class="flex items-center justify-center py-3 text-[#718096] text-xs"
+      >
+        <span class="w-3.5 h-3.5 border-2 border-[#718096]/30 border-t-[#718096] rounded-full animate-spin mr-2"></span>
+        加载历史消息...
+      </div>
+      <div
+        v-else-if="!chatStore.hasMore && chatStore.messages.length >= 20"
+        class="flex items-center justify-center py-3"
+      >
+        <span class="text-[11px] text-[#4a5568]">没有更多消息了</span>
+      </div>
+
       <!-- 加载态 -->
       <div v-if="chatStore.isLoading" class="flex items-center justify-center py-12 text-[#718096] text-sm">
         <span class="w-4 h-4 border-2 border-[#718096]/30 border-t-[#718096] rounded-full animate-spin mr-2"></span>
@@ -166,7 +224,7 @@ function formatSeparatorTime(date: Date): string {
   </main>
 
   <!-- 未选择好友 -->
-  <main v-else class="flex items-center justify-center bg-[#1a1a2e]">
+  <main v-else class="flex items-center justify-center overflow-hidden bg-[#1a1a2e]">
     <div class="text-center">
       <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-400 to-green-400 shadow-[0_8px_32px_rgba(66,153,225,0.15)] mb-4">
         <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" class="w-12 h-12">

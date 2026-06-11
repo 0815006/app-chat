@@ -128,23 +128,42 @@ class SupabaseChatService implements IChatService {
 
   // ==================== 消息 ====================
 
-  async fetchHistory(senderId: string, receiverId: string): Promise<Message[]> {
+  async fetchHistory(
+    senderId: string,
+    receiverId: string,
+    limit: number = 20,
+    before?: string
+  ): Promise<[Message[], boolean]> {
     const supabase = getSupabase()
-    const { data, error } = await supabase
+    let query = supabase
       .from('messages')
       .select('*')
       .or(
         `and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),` +
         `and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`
       )
-      .order('created_at', { ascending: true })
-      .limit(100)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    // 游标分页：before 为上一页最早一条的 created_at
+    if (before) {
+      query = query.lt('created_at', before)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       throw new Error(`获取历史消息失败: ${error.message}`)
     }
 
-    return (data ?? []) as Message[]
+    const msgs = (data ?? []) as Message[]
+    // 反转回正序（ascending）供 UI 渲染
+    msgs.reverse()
+
+    // hasMore：实际返回数 == limit 表示可能还有更多
+    const hasMore = msgs.length >= limit
+
+    return [msgs, hasMore]
   }
 
   async sendMessage(msgData: SendMessageParams): Promise<Message> {
@@ -293,6 +312,23 @@ class SupabaseChatService implements IChatService {
     return avatarUrl
   }
 
+  async deleteAvatar(): Promise<string> {
+    const supabase = getSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('未登录')
+
+    // 将 profiles.avatar_url 置为 null，恢复默认无头像状态
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    if (error) throw new Error(`删除头像失败: ${error.message}`)
+
+    // 返回空字符串表示已清除
+    return ''
+  }
+
   // ==================== 好友管理 ====================
 
   async fetchFriends(): Promise<Friend[]> {
@@ -325,16 +361,16 @@ class SupabaseChatService implements IChatService {
       throw new Error(`获取好友列表失败: ${error.message}`)
     }
 
-    // 同时获取每个好友的最后一条消息
+    // 同时获取每个好友的最后一条消息 + 未读计数
     const result: Friend[] = await Promise.all(
       (data ?? []).map(async (row: Record<string, unknown>) => {
         const friendProfile = Array.isArray(row.friend) ? row.friend[0] : row.friend
         const friendId = row.friend_id as string
 
-        // 获取最后一条消息
+        // 获取最后一条消息（含 msg_type）
         const { data: lastMsgs } = await supabase
           .from('messages')
-          .select('content, created_at')
+          .select('content, msg_type, created_at')
           .or(
             `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),` +
             `and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
@@ -342,7 +378,15 @@ class SupabaseChatService implements IChatService {
           .order('created_at', { ascending: false })
           .limit(1)
 
-        const lastMsg = lastMsgs?.[0]
+        const lastMsg = lastMsgs?.[0] as Record<string, unknown> | undefined
+
+        // 获取未读消息计数（对方发给我的 is_read=false 的消息数）
+        const { count: unreadCount } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', friendId)
+          .eq('receiver_id', user.id)
+          .eq('is_read', false)
 
         return {
           id: row.id as string,
@@ -352,11 +396,19 @@ class SupabaseChatService implements IChatService {
           avatar_url: (friendProfile as Record<string, unknown> | null)?.avatar_url as string ?? undefined,
           online: (friendProfile as Record<string, unknown> | null)?.is_online as boolean ?? false,
           last_message: lastMsg?.content as string | undefined,
+          last_message_type: lastMsg?.msg_type as Message['msg_type'] | undefined,
           last_message_at: lastMsg?.created_at as string | undefined,
-          unread_count: 0,
+          unread_count: unreadCount ?? 0,
         }
       })
     )
+
+    // 按最后消息时间倒序排列（有消息的在前，无消息的按好友添加时间）
+    result.sort((a, b) => {
+      const tA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
+      const tB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+      return tB - tA
+    })
 
     return result
   }

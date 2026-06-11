@@ -12,6 +12,7 @@ const nickname = ref('')
 const avatarPreview = ref<string | null>(null)
 const isUploading = ref(false)
 const isSaving = ref(false)
+const isDeleting = ref(false)
 const selectedFile = ref<File | null>(null)
 
 /** 从 authStore 同步当前资料 */
@@ -88,6 +89,21 @@ async function saveProfile() {
     toast.error(e instanceof Error ? e.message : '更新个人信息失败')
   } finally {
     isSaving.value = false
+  }
+}
+
+/** 删除头像，恢复默认无头像状态 */
+async function removeAvatar() {
+  isDeleting.value = true
+  try {
+    await authStore.deleteAvatar()
+    avatarPreview.value = null
+    selectedFile.value = null
+    toast.success('头像已删除')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : '删除头像失败')
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -169,6 +185,16 @@ function close() {
               {{ isUploading ? '上传中...' : '上传头像' }}
             </button>
             <p v-else class="text-[11px] text-[#718096] -mt-3">点击头像更换图片</p>
+
+            <!-- 删除头像按钮（有头像时显示） -->
+            <button
+              v-if="avatarPreview && !selectedFile"
+              class="px-4 py-1.5 rounded-lg text-sm font-medium text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isDeleting"
+              @click="removeAvatar"
+            >
+              {{ isDeleting ? '删除中...' : '删除头像' }}
+            </button>
 
             <!-- 昵称 -->
             <div class="w-full flex flex-col gap-1.5">

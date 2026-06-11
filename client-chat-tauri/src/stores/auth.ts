@@ -85,10 +85,19 @@ export const useAuthStore = defineStore('auth', () => {
     return url
   }
 
+  /** 删除头像，恢复默认无头像状态 */
+  async function deleteAvatar(): Promise<string> {
+    const url = await chatService.deleteAvatar()
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, avatar_url: '' }
+    }
+    return url
+  }
+
   return {
     currentUser, user, isLoading, error,
     showProfileDialog,
     login, register, logout, restoreSession,
-    updateProfile, updateAvatar,
+    updateProfile, updateAvatar, deleteAvatar,
   }
 })

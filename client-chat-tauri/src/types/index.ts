@@ -48,6 +48,8 @@ export interface Friend {
   avatar_url?: string
   /** 最后一条消息摘要 */
   last_message?: string
+  /** 最后一条消息类型（用于区分 [图片]/[文件]/[语音] 标签） */
+  last_message_type?: Message['msg_type']
   /** 最后消息时间 */
   last_message_at?: string
   /** 未读消息数 */
@@ -98,7 +100,8 @@ export interface IChatService {
   register(params: RegisterParams): Promise<{ user: User; session: unknown }>
   logout(): Promise<void>
   restoreSession(): Promise<{ user: User; session: unknown } | null>
-  fetchHistory(senderId: string, receiverId: string): Promise<Message[]>
+  /** 分页拉取历史消息；limit 默认 20，返回 [消息列表, 是否还有更多] */
+  fetchHistory(senderId: string, receiverId: string, limit?: number, before?: string): Promise<[Message[], boolean]>
   sendMessage(msgData: SendMessageParams): Promise<Message>
   uploadFile(params: UploadParams): Promise<string>
   markAsRead(messageIds: string[]): Promise<void>
@@ -117,4 +120,6 @@ export interface IChatService {
   updateProfile(nickname: string): Promise<User>
   /** 上传头像图片，返回新的 avatar_url */
   updateAvatar(file: File): Promise<string>
+  /** 删除头像（恢复为默认无头像状态） */
+  deleteAvatar(): Promise<string>
 }

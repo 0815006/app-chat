@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useChatStore } from '../../stores/chat'
 
 import Avatar from '../../components/Avatar.vue'
 
@@ -14,6 +15,11 @@ const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
 /** 退出登录并跳转到登录页 */
 async function handleLogout() {
   await authStore.logout()
+
+  // 重置聊天状态，防止下一个登录用户看到上一个用户的残留数据
+  const chatStore = useChatStore()
+  chatStore.resetAll()
+
   router.replace('/login')
 }
 </script>

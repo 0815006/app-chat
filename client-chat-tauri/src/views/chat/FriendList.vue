@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import Avatar from '../../components/Avatar.vue'
+import type { Friend } from '../../types'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
@@ -12,10 +13,30 @@ function searchFriends() {
   // 可对接搜索逻辑，当前使用 loadFriends
   chatStore.loadFriends()
 }
+
+/**
+ * 获取最后一条消息的预览文本：
+ * - text: 消息内容（截断30字）
+ * - image: [图片]
+ * - file: [文件]
+ * - voice: [语音]
+ */
+function lastMessagePreview(friend: Friend): string {
+  if (!friend.last_message) return ''
+  const type = friend.last_message_type
+  if (!type || type === 'text') {
+    const text = friend.last_message
+    return text.length > 30 ? text.slice(0, 30) + '…' : text
+  }
+  if (type === 'image') return '[图片]'
+  if (type === 'file') return '[文件]'
+  if (type === 'voice') return '[语音]'
+  return friend.last_message
+}
 </script>
 
 <template>
-  <aside class="grid grid-rows-[auto_1fr_auto] h-full bg-[#1e1935] border-r border-[#2a1f5e]">
+  <aside class="grid grid-rows-[auto_1fr_auto] h-full overflow-hidden bg-[#1e1935] border-r border-[#2a1f5e]">
     <!-- 搜索栏 + 加好友 -->
     <div class="px-4 py-4 border-b border-[#2a1f5e]">
       <div class="flex items-center gap-2">
@@ -77,14 +98,27 @@ function searchFriends() {
             size="md"
           />
           <div class="min-w-0 flex-1">
-            <div class="text-[14px] font-medium truncate">{{ friend.name }}</div>
-            <div class="text-[12px] text-[#718096] truncate">{{ friend.employee_id }}</div>
-          </div>
-          <div
-            v-if="chatStore.unreadCounts[friend.friend_id]"
-            class="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1"
-          >
-            {{ chatStore.unreadCounts[friend.friend_id] > 99 ? '99+' : chatStore.unreadCounts[friend.friend_id] }}
+            <div class="flex items-center justify-between">
+              <div class="text-[14px] font-medium truncate">{{ friend.name }}</div>
+              <!-- 未读红点 -->
+              <span
+                v-if="(friend.unread_count ?? 0) > 0"
+                class="shrink-0 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 ml-1"
+              >
+                {{ (friend.unread_count ?? 0) > 99 ? '99+' : friend.unread_count }}
+              </span>
+            </div>
+            <!-- 最后一条消息预览 -->
+            <div
+              v-if="lastMessagePreview(friend)"
+              class="text-[12px] text-[#718096] truncate mt-0.5"
+              :class="{ 'text-[#e2e8f0]': (friend.unread_count ?? 0) > 0 }"
+            >
+              {{ lastMessagePreview(friend) }}
+            </div>
+            <div v-else-if="friend.employee_id" class="text-[12px] text-[#718096] truncate">
+              {{ friend.employee_id }}
+            </div>
           </div>
         </li>
       </ul>

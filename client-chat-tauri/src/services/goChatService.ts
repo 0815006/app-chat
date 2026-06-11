@@ -100,17 +100,29 @@ class GoChatService implements IChatService {
 
   // ==================== 消息 ====================
 
-  async fetchHistory(senderId: string, receiverId: string): Promise<Message[]> {
+  async fetchHistory(
+    senderId: string,
+    receiverId: string,
+    limit: number = 20,
+    before?: string
+  ): Promise<[Message[], boolean]> {
     const token = localStorage.getItem('go-chat-token')
+    const params = new URLSearchParams({
+      sender_id: senderId,
+      receiver_id: receiverId,
+      limit: String(limit),
+    })
+    if (before) params.set('before', before)
+
     const res = await fetch(
-      `${this.baseUrl()}/api/history?sender_id=${senderId}&receiver_id=${receiverId}`,
+      `${this.baseUrl()}/api/history?${params.toString()}`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
 
     if (!res.ok) throw new Error(`获取历史消息失败: HTTP ${res.status}`)
     const json = await res.json()
     if (json.code !== 200) throw new Error(`获取历史消息失败: ${json.message}`)
-    return json.data as Message[]
+    return [json.data as Message[], json.has_more as boolean]
   }
 
   async sendMessage(msgData: SendMessageParams): Promise<Message> {
@@ -294,6 +306,10 @@ class GoChatService implements IChatService {
 
   async updateAvatar(_file: File): Promise<string> {
     throw new Error('Go 后端暂不支持上传头像')
+  }
+
+  async deleteAvatar(): Promise<string> {
+    throw new Error('Go 后端暂不支持删除头像')
   }
 }
 

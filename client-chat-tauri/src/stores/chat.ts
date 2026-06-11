@@ -6,6 +6,9 @@ import { useAuthStore } from './auth'
 import { toast } from '../utils/toast'
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 
+/** 每次分页拉取的消息条数 */
+const PAGE_SIZE = 20
+
 export const useChatStore = defineStore('chat', () => {
   // ========== 状态 ==========
   const messages = ref<Message[]>([])
@@ -14,6 +17,11 @@ export const useChatStore = defineStore('chat', () => {
   const isLoading = ref(false)
   const isLoadingFriends = ref(false)
   const currentBackend = ref<ChatServiceType>('supabase')
+
+  /** 历史消息是否还有更多（用于上拉加载） */
+  const hasMore = ref(false)
+  /** 正在加载更多历史消息 */
+  const isLoadingMore = ref(false)
 
   /** 添加好友弹窗显示状态（跨组件共享） */
   const showAddFriendDialog = ref(false)
@@ -67,6 +75,8 @@ export const useChatStore = defineStore('chat', () => {
     activeFriend.value = found
     if (found) {
       await loadHistory(found.friend_id)
+      // 打开聊天框时清除该好友的未读计数
+      found.unread_count = 0
     }
   }
 
@@ -83,6 +93,7 @@ export const useChatStore = defineStore('chat', () => {
     if (activeFriend.value?.friend_id === friendId) {
       activeFriend.value = null
       messages.value = []
+      hasMore.value = false
     }
   }
 
@@ -93,18 +104,24 @@ export const useChatStore = defineStore('chat', () => {
 
   // ========== 消息操作 ==========
 
-  /** 拉取历史消息 */
+  /** 拉取第一页历史消息（切换好友时调用） */
   async function loadHistory(friendId: string) {
     const authStore = useAuthStore()
     if (!authStore.currentUser) {
       throw new Error('请先登录')
     }
     isLoading.value = true
+    hasMore.value = false
     try {
-      const history = await chatService.fetchHistory(authStore.currentUser.id, friendId)
+      const [history, more] = await chatService.fetchHistory(
+        authStore.currentUser.id,
+        friendId,
+        PAGE_SIZE
+      )
       messages.value = history
+      hasMore.value = more
 
-      // 标记未读消息为已读
+      // 标记对方发来的未读消息为已读
       const unreadIds = history
         .filter((m) => m.sender_id === friendId && !m.is_read)
         .map((m) => m.id)
@@ -113,6 +130,41 @@ export const useChatStore = defineStore('chat', () => {
       }
     } finally {
       isLoading.value = false
+    }
+  }
+
+  /** 加载更早的历史消息（滚动到顶部触发） */
+  async function loadMoreHistory(): Promise<number> {
+    const authStore = useAuthStore()
+    if (!authStore.currentUser || !activeFriend.value) return 0
+    if (isLoadingMore.value || !hasMore.value || messages.value.length === 0) return 0
+
+    isLoadingMore.value = true
+    // 记录加载前的滚动高度，用于加载后保持位置
+    const prevScrollHeight = 0 // 由 ChatWindow 在调用前记录
+
+    try {
+      // 以当前最早一条消息的 created_at 作为游标
+      const oldestMsg = messages.value[0]
+      const [olderMsgs, more] = await chatService.fetchHistory(
+        authStore.currentUser.id,
+        activeFriend.value.friend_id,
+        PAGE_SIZE,
+        oldestMsg.created_at
+      )
+
+      if (olderMsgs.length > 0) {
+        // 前置插入到消息列表头部
+        messages.value = [...olderMsgs, ...messages.value]
+      }
+      hasMore.value = more
+
+      return olderMsgs.length
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '加载历史消息失败')
+      return 0
+    } finally {
+      isLoadingMore.value = false
     }
   }
 
@@ -240,38 +292,45 @@ export const useChatStore = defineStore('chat', () => {
       const authStore = useAuthStore()
       if (!authStore.currentUser) return
 
-      // 仅当新消息属于当前聊天时追加
-      if (
+      // 判断是否是当前活跃聊天
+      const isCurrentChat =
         activeFriend.value &&
         (newMsg.receiver_id === activeFriend.value.friend_id ||
           newMsg.sender_id === activeFriend.value.friend_id)
-      ) {
+
+      if (isCurrentChat) {
         // 幂等：防止重复插入相同 id 的消息
         if (!messages.value.some((m) => m.id === newMsg.id)) {
           messages.value.push(newMsg)
         }
 
-        // 对方发来的消息标记为已读
-        if (newMsg.sender_id === activeFriend.value.friend_id) {
+        // 对方发来的消息立即标记为已读
+        if (newMsg.sender_id === activeFriend.value!.friend_id) {
           chatService.markAsRead([newMsg.id])
         }
       }
 
-      // 更新好友列表的最后一条消息
+      // 更新好友列表的最后一条消息 + 未读计数
       const friendIndex = friends.value.findIndex(
         (f) =>
           f.friend_id === newMsg.sender_id ||
           f.friend_id === newMsg.receiver_id
       )
       if (friendIndex !== -1) {
-        friends.value[friendIndex] = {
-          ...friends.value[friendIndex],
-          last_message: newMsg.content,
-          last_message_at: newMsg.created_at,
+        const f = { ...friends.value[friendIndex] }
+        f.last_message = newMsg.content
+        f.last_message_type = newMsg.msg_type
+        f.last_message_at = newMsg.created_at
+
+        // 如果不是当前活跃聊天且消息是对方发的，增加未读计数
+        if (!isCurrentChat && newMsg.sender_id !== authStore.currentUser.id) {
+          f.unread_count = (f.unread_count ?? 0) + 1
         }
+
+        friends.value[friendIndex] = f
         // 将当前好友移到列表顶部
-        const f = friends.value.splice(friendIndex, 1)[0]
-        friends.value.unshift(f)
+        const moved = friends.value.splice(friendIndex, 1)[0]
+        friends.value.unshift(moved)
       }
 
       // ===== 系统通知：窗口未聚焦时推送 =====
@@ -292,6 +351,26 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /**
+   * 重置所有聊天状态（登出时调用）
+   * 确保下一个登录用户看到的是干净的聊天界面
+   */
+  function resetAll() {
+    // 先销毁所有实时订阅
+    destroyRealtimeListener()
+    destroyOnlineStatusListener()
+
+    // 重置状态
+    messages.value = []
+    activeFriend.value = null
+    friends.value = []
+    hasMore.value = false
+    isLoadingMore.value = false
+    isLoading.value = false
+    isLoadingFriends.value = false
+    showAddFriendDialog.value = false
+  }
+
   /** 滚动到聊天底部 */
   async function scrollToBottom(containerEl: HTMLElement) {
     await nextTick()
@@ -306,6 +385,8 @@ export const useChatStore = defineStore('chat', () => {
     friends,
     isLoading,
     isLoadingFriends,
+    isLoadingMore,
+    hasMore,
     currentBackend,
     showAddFriendDialog,
     // 派生
@@ -321,6 +402,7 @@ export const useChatStore = defineStore('chat', () => {
     searchUsers,
     // 消息操作
     loadHistory,
+    loadMoreHistory,
     sendMessage,
     sendFile,
     // 实时监听
@@ -331,5 +413,7 @@ export const useChatStore = defineStore('chat', () => {
     initOnlineStatusListener,
     destroyOnlineStatusListener,
     scrollToBottom,
+    // 状态重置（登出时清理）
+    resetAll,
   }
 })
