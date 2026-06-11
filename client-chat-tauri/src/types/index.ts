@@ -14,6 +14,8 @@ export interface User {
   status?: 'online' | 'offline' | 'away'
   /** 邮箱 */
   email?: string
+  /** 注册时间 (ISO string) */
+  created_at?: string
 }
 
 /** 聊天消息 */
@@ -63,6 +65,9 @@ export interface Friend {
   /** 好友的 employee_id */
   employee_id?: string
 }
+
+/** 用户列表排序字段 */
+export type UserSortField = 'created_at' | 'nickname' | 'employee_id'
 
 /** 聊天服务后端类型 */
 export type ChatServiceType = 'supabase' | 'golang'
@@ -126,7 +131,7 @@ export interface IChatService {
   uploadFile(params: UploadParams): Promise<UploadResult>
   markAsRead(messageIds: string[]): Promise<void>
   searchUsers(query: string): Promise<User[]>
-  fetchAllUsers(): Promise<User[]>
+  fetchAllUsers(sort?: UserSortField): Promise<User[]>
   addFriend(friendId: string): Promise<Friend>
   removeFriend(friendId: string): Promise<void>
   fetchFriends(): Promise<Friend[]>

@@ -270,9 +270,13 @@ class GoChatService implements IChatService {
     return json.data as User[]
   }
 
-  async fetchAllUsers(): Promise<User[]> {
+  async fetchAllUsers(sort?: string): Promise<User[]> {
     const token = localStorage.getItem('go-chat-token')
-    const res = await fetch(`${this.baseUrl()}/api/users`, {
+    const params = new URLSearchParams()
+    if (sort) params.set('sort', sort)
+
+    const qs = params.toString()
+    const res = await fetch(`${this.baseUrl()}/api/users${qs ? '?' + qs : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 

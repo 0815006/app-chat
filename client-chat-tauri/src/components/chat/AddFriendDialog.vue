@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
 import { toast } from '../../utils/toast'
-import type { User } from '../../types'
+import type { User, UserSortField } from '../../types'
 
 const props = defineProps<{
   visible: boolean
@@ -25,12 +25,32 @@ const addingIds = ref<Set<string>>(new Set())
 /** 是否为浏览全部用户模式 */
 const isBrowsingAll = ref(false)
 
-/** 从当前 result 中已排除自己，所以统一在此过滤 */
+/** 排序字段 */
+const sortField = ref<UserSortField>('created_at')
+
+/** 排序选项 — 以 pill 形式展示 */
+const sortOptions: { label: string; value: UserSortField }[] = [
+  { label: '注册时间', value: 'created_at' },
+  { label: '名称', value: 'nickname' },
+  { label: '工号', value: 'employee_id' },
+]
+
+/** 好友 ID 集合（快速查找是否已为好友） */
+const friendIds = computed<Set<string>>(() => {
+  return new Set(chatStore.friends.map((f) => f.friend_id))
+})
+
+/** 从当前 result 中已排除自己 */
 function excludeSelf(users: User[]): User[] {
   return users.filter((u) => u.id !== authStore.currentUser?.id)
 }
 
-/** 执行搜索，仅在输入字符 >= 2 时触发 */
+/** 获取头像首字母 */
+function avatarInitial(user: User): string {
+  return (user.nickname || '?').charAt(0)
+}
+
+/** 执行搜索 */
 async function doSearch() {
   const q = keyword.value.trim()
   if (q.length < 2) {
@@ -59,12 +79,20 @@ async function browseAllUsers() {
   searched.value = true
   keyword.value = ''
   try {
-    const users = await chatStore.fetchAllUsers()
+    const users = await chatStore.fetchAllUsers(sortField.value)
     results.value = excludeSelf(users)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : '获取用户列表失败')
   } finally {
     isSearching.value = false
+  }
+}
+
+/** 切换排序并重新加载 */
+async function onChangeSort(newSort: UserSortField) {
+  sortField.value = newSort
+  if (isBrowsingAll.value) {
+    await browseAllUsers()
   }
 }
 
@@ -75,8 +103,6 @@ async function handleAdd(user: User) {
   try {
     await chatStore.addFriend(user.id)
     toast.success(`已添加 ${user.nickname} 为好友`)
-    // 从结果中移除
-    results.value = results.value.filter((u) => u.id !== user.id)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : '添加好友失败')
   } finally {
@@ -90,186 +116,390 @@ function close() {
   results.value = []
   searched.value = false
   isBrowsingAll.value = false
+  sortField.value = 'created_at'
   emit('close')
+}
+
+/** 按 Esc 关闭 */
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') close()
 }
 
 // 弹窗打开时自动聚焦搜索框
 const inputRef = ref<HTMLInputElement | null>(null)
 watch(
   () => props.visible,
-  (v) => {
+  async (v) => {
     if (v) {
-      setTimeout(() => inputRef.value?.focus(), 100)
+      await nextTick()
+      setTimeout(() => inputRef.value?.focus(), 150)
     }
   }
 )
 </script>
 
 <template>
-  <!-- 遮罩层 -->
   <Teleport to="body">
-    <div
-      v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center"
-    >
-      <!-- 半透明遮罩 -->
+    <Transition name="modal">
       <div
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        @click="close"
-      ></div>
-
-      <!-- 弹窗本体 -->
-      <div
-        class="relative w-[420px] max-h-[520px] rounded-2xl bg-[#1e1935] border border-[#2a1f5e] shadow-2xl flex flex-col overflow-hidden"
+        v-if="visible"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        @keydown="onKeydown"
       >
-        <!-- 标题栏 -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-[#2a1f5e] shrink-0">
-          <h2 class="text-[16px] font-semibold text-[#e2e8f0]">添加好友</h2>
-          <button
-            class="w-8 h-8 rounded-lg flex items-center justify-center text-[#718096] hover:text-[#e2e8f0] hover:bg-[#252050] transition-colors cursor-pointer"
-            @click="close"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
-              <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
-            </svg>
-          </button>
-        </div>
+        <!-- 遮罩层 -->
+        <div
+          class="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+          @click="close"
+        ></div>
 
-        <!-- 搜索栏 -->
-        <div class="px-5 py-3 border-b border-[#2a1f5e] shrink-0 flex flex-col gap-2">
-          <div class="relative">
-            <input
-              ref="inputRef"
-              v-model="keyword"
-              type="text"
-              placeholder="输入昵称或工号搜索..."
-              class="w-full pl-9 pr-3 py-2.5 rounded-lg border border-[#2d3748] bg-[#17132b] text-[#e2e8f0] text-[14px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
-              @keyup.enter="doSearch"
-              @input="searched = false; isBrowsingAll = false"
-            />
-            <svg
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4a5568] pointer-events-none"
-            >
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
-            <button
-              class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-md bg-blue-500/20 text-blue-400 text-[12px] font-medium hover:bg-blue-500/30 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="keyword.trim().length < 2 || isSearching"
-              @click="doSearch"
-            >
-              搜索
-            </button>
-          </div>
-          <!-- 查看所有用户按钮 -->
-          <button
-            class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#ffffff06] border border-[#ffffff0d] text-[#a0aec0] text-[13px] hover:bg-[#ffffff0d] hover:text-[#e2e8f0] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            :disabled="isSearching"
-            @click="browseAllUsers"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>查看所有注册用户</span>
-          </button>
-        </div>
-
-        <!-- 搜索结果区 -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar px-2 py-2">
-          <!-- 加载中 -->
-          <div v-if="isSearching" class="flex items-center justify-center py-16">
-            <div class="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin"></div>
-            <span class="ml-2 text-[13px] text-[#718096]">搜索中...</span>
-          </div>
-
-          <!-- 搜索结果 / 全部用户列表 -->
-          <template v-else-if="results.length > 0">
-            <div class="px-3 py-2 text-[11px] font-semibold text-[#718096] uppercase tracking-wider">
-              {{ isBrowsingAll ? '全部用户' : '搜索结果' }} — {{ results.length }}
-            </div>
-            <ul class="list-none m-0 p-0">
-              <li
-                v-for="user in results"
-                :key="user.id"
-                class="flex items-center gap-3 px-3 py-2.5 mx-1 my-0.5 rounded-lg hover:bg-[#252050] transition-colors"
+        <!-- 弹窗本体 — 加宽以容纳卡片网格 -->
+        <div
+          class="relative w-full max-w-[720px] min-h-[540px] max-h-[680px] rounded-2xl bg-[#141028] border border-white/[0.06] shadow-[0_25px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)] flex flex-col overflow-hidden"
+        >
+          <!-- ========== 标题栏 ========== -->
+          <div class="relative shrink-0 px-6 pt-6 pb-0">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center shadow-[0_4px_12px_rgba(66,153,225,0.2)]">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" class="w-5 h-5">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="19" y1="8" x2="19" y2="14" stroke-linecap="round"/>
+                    <line x1="22" y1="11" x2="16" y2="11" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-[16px] font-semibold text-white">添加好友</h2>
+                  <p class="text-[12px] text-[#64748b] mt-0.5">通过昵称或工号搜索用户</p>
+                </div>
+              </div>
+              <button
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+                @click="close"
+                aria-label="关闭"
               >
-                <!-- 头像占位 -->
-                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-green-400 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-                  {{ user.nickname.charAt(0) }}
-                </div>
-                <!-- 用户信息 -->
-                <div class="min-w-0 flex-1">
-                  <div class="text-[14px] font-medium text-[#e2e8f0] truncate">{{ user.nickname }}</div>
-                  <div class="text-[11px] text-[#718096] truncate">{{ user.employee_id || '未设置工号' }}</div>
-                </div>
-                <!-- 添加按钮 -->
-                <button
-                  class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 text-[12px] font-medium hover:bg-blue-500/25 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  :disabled="addingIds.has(user.id)"
-                  @click="handleAdd(user)"
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
+                  <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+            <!-- 渐变色底部装饰线 -->
+            <div class="mt-4 h-px bg-gradient-to-r from-blue-400/40 via-transparent to-transparent"></div>
+          </div>
+
+          <!-- ========== 搜索栏 + 操作区 ========== -->
+          <div class="shrink-0 px-6 pt-4 pb-3 space-y-3">
+            <!-- 搜索框 -->
+            <div class="relative group">
+              <div class="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/20 to-green-400/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -m-[1px]"></div>
+              <div class="relative flex items-center bg-[#0f0b24] rounded-xl border border-white/[0.06] group-focus-within:border-blue-400/30 transition-colors duration-300">
+                <!-- 搜索图标 -->
+                <svg
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  class="absolute left-3.5 w-4 h-4 text-[#475569] group-focus-within:text-blue-400 transition-colors duration-300 pointer-events-none"
                 >
-                  <span v-if="addingIds.has(user.id)" class="flex items-center gap-1">
-                    <span class="w-3 h-3 border border-blue-400/30 border-t-blue-400 rounded-full animate-spin"></span>
-                    添加中
-                  </span>
-                  <span v-else>添加</span>
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input
+                  ref="inputRef"
+                  v-model="keyword"
+                  type="text"
+                  placeholder="搜索昵称或工号..."
+                  class="w-full pl-10 pr-20 py-3 bg-transparent text-white text-[14px] outline-none placeholder:text-[#475569]"
+                  @keyup.enter="doSearch"
+                  @input="searched = false; isBrowsingAll = false"
+                />
+                <!-- 搜索按钮 / 清除按钮 -->
+                <div class="absolute right-2 flex items-center gap-1">
+                  <button
+                    v-if="keyword"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    @click="keyword = ''; searched = false; inputRef?.focus()"
+                    aria-label="清除"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5">
+                      <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                  <button
+                    class="h-9 px-4 rounded-lg bg-blue-500 text-white text-[13px] font-medium hover:bg-blue-600 active:scale-[0.97] transition-all duration-200 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100"
+                    :disabled="keyword.trim().length < 2 || isSearching"
+                    @click="doSearch"
+                  >
+                    搜索
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 排序 + 浏览全部 -->
+            <div class="flex items-center justify-between gap-3">
+              <!-- 排序标签 -->
+              <div class="flex items-center gap-1.5 p-0.5 rounded-lg bg-white/[0.03]">
+                <button
+                  v-for="opt in sortOptions"
+                  :key="opt.value"
+                  class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 cursor-pointer"
+                  :class="sortField === opt.value
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'text-[#475569] hover:text-[#94a3b8]'"
+                  @click="onChangeSort(opt.value)"
+                >
+                  按{{ opt.label }}
                 </button>
-              </li>
-            </ul>
-          </template>
+              </div>
 
-          <!-- 无结果 -->
-          <div
-            v-else-if="searched && !isSearching"
-            class="flex flex-col items-center justify-center py-16 text-[#718096]"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-10 h-10 mb-3 opacity-40">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
-            <span class="text-[13px]">未找到相关用户</span>
-            <span class="text-[11px] mt-1 opacity-60">尝试其他昵称或工号</span>
+              <!-- 查看全部按钮 -->
+              <button
+                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-[#94a3b8] hover:text-white hover:bg-white/[0.05] transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="isSearching"
+                @click="browseAllUsers"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-3.5 h-3.5">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                查看全部用户
+              </button>
+            </div>
           </div>
 
-          <!-- 初始提示 -->
-          <div
-            v-else
-            class="flex flex-col items-center justify-center py-16 text-[#718096]"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-10 h-10 mb-3 opacity-40">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span class="text-[13px]">输入昵称或工号搜索，或点击"查看所有注册用户"</span>
-          </div>
-        </div>
+          <!-- ========== 内容区 ========== -->
+          <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-5 pb-6">
+            <!-- 加载骨架 — 卡片骨架网格 -->
+            <div v-if="isSearching" class="py-2 card-grid">
+              <div
+                v-for="i in 10" :key="i"
+                class="skeleton-card animate-pulse"
+              >
+                <div class="w-10 h-10 rounded-full bg-white/[0.04] shrink-0"></div>
+                <div class="flex-1 ml-2 space-y-1.5">
+                  <div class="h-2.5 w-16 rounded-full bg-white/[0.04]"></div>
+                  <div class="h-2 w-12 rounded-full bg-white/[0.03]"></div>
+                </div>
+              </div>
+            </div>
 
-        <!-- 底部关闭按钮 -->
-        <div class="px-5 py-3 border-t border-[#2a1f5e] shrink-0 flex justify-end">
-          <button
-            class="px-4 py-2 rounded-lg bg-[#252050] text-[#a0aec0] text-[13px] font-medium hover:bg-[#2d1f6e] hover:text-[#e2e8f0] transition-colors cursor-pointer"
-            @click="close"
-          >
-            关闭
-          </button>
+            <!-- 结果网格 -->
+            <template v-else-if="results.length > 0">
+              <!-- 结果计数 -->
+              <div class="sticky top-0 z-10 -mx-5 px-5 py-2.5 bg-[#141028]/95 backdrop-blur-sm">
+                <div class="flex items-center gap-2 text-[12px]">
+                  <span class="font-medium text-[#94a3b8]">
+                    {{ isBrowsingAll ? '全部用户' : '搜索结果' }}
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[#64748b] font-medium tabular-nums">
+                    {{ results.length }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- 用户卡片网格 -->
+              <TransitionGroup name="card" tag="div" class="card-grid pb-2">
+                <!-- ===== 单个用户卡片 ===== -->
+                <div
+                  v-for="user in results"
+                  :key="user.id"
+                  class="user-card group"
+                  :class="{ 'is-friend': friendIds.has(user.id) }"
+                >
+                  <!-- 头像区 -->
+                  <div class="relative shrink-0">
+                    <div
+                      v-if="user.avatar_url"
+                      class="w-10 h-10 rounded-full overflow-hidden"
+                    >
+                      <img :src="user.avatar_url" class="w-full h-full object-cover" alt="" />
+                    </div>
+                    <div
+                      v-else
+                      class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400/80 to-green-400/80 flex items-center justify-center text-white text-base font-semibold"
+                    >
+                      {{ avatarInitial(user) }}
+                    </div>
+                    <!-- 在线状态点 -->
+                    <span
+                      class="absolute bottom-px right-px w-2.5 h-2.5 rounded-full ring-2 ring-[#141028]"
+                      :class="user.status === 'online' ? 'bg-green-400' : 'bg-[#334155]'"
+                    ></span>
+                  </div>
+
+                  <!-- 用户信息 -->
+                  <div class="flex-1 min-w-0 ml-2">
+                    <div class="text-[11px] font-medium text-white truncate">{{ user.nickname }}</div>
+                    <div class="text-[10px] text-[#475569] truncate mt-px">{{ user.employee_id || '未设置工号' }}</div>
+                  </div>
+
+                  <!-- 操作按钮 -->
+                  <div class="shrink-0 ml-1.5">
+                    <!-- 已是好友 -->
+                    <div
+                      v-if="friendIds.has(user.id)"
+                      class="w-4 h-4 rounded-full bg-green-400/10 flex items-center justify-center"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="w-2.5 h-2.5 text-green-400">
+                        <path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+
+                    <!-- 添加按钮 -->
+                    <button
+                      v-else
+                      class="w-4 h-4 rounded-full flex items-center justify-center bg-white/[0.04] text-[#64748b] hover:bg-blue-500 hover:text-white active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/[0.04] disabled:hover:text-[#64748b] disabled:active:scale-100"
+                      :disabled="addingIds.has(user.id)"
+                      @click.stop="handleAdd(user)"
+                    >
+                      <span v-if="addingIds.has(user.id)" class="w-2 h-2 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-2.5 h-2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" stroke-linecap="round"/>
+                        <line x1="5" y1="12" x2="19" y2="12" stroke-linecap="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </TransitionGroup>
+            </template>
+
+            <!-- 搜索无结果 -->
+            <div
+              v-else-if="searched && !isSearching"
+              class="flex flex-col items-center justify-center py-20"
+            >
+              <div class="w-16 h-16 rounded-2xl bg-white/[0.02] flex items-center justify-center mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[#334155]">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
+                  <line x1="8" y1="8" x2="14" y2="14" stroke-linecap="round"/>
+                  <line x1="14" y1="8" x2="8" y2="14" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="text-[14px] font-medium text-[#64748b] mb-1">未找到相关用户</p>
+              <p class="text-[12px] text-[#475569]">尝试其他昵称或工号关键词</p>
+            </div>
+
+            <!-- 初始状态 -->
+            <div
+              v-else
+              class="flex flex-col items-center justify-center py-20"
+            >
+              <div class="w-16 h-16 rounded-2xl bg-white/[0.02] flex items-center justify-center mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[#334155]">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <p class="text-[14px] font-medium text-[#64748b] mb-1">添加新的好友</p>
+              <p class="text-[12px] text-[#475569] text-center leading-relaxed max-w-[260px]">
+                输入昵称或工号搜索用户，<br/>或点击「查看全部用户」浏览所有注册用户
+              </p>
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <style scoped>
+/* ========== 模态框过渡动画 ========== */
+.modal-enter-active {
+  transition: opacity 0.2s ease-out;
+}
+.modal-leave-active {
+  transition: opacity 0.15s ease-in;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-active > div:last-child {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out;
+}
+.modal-leave-active > div:last-child {
+  transition: transform 0.15s ease-in, opacity 0.1s ease-in;
+}
+.modal-enter-from > div:last-child {
+  transform: scale(0.95) translateY(8px);
+  opacity: 0;
+}
+.modal-leave-to > div:last-child {
+  transform: scale(0.97);
+  opacity: 0;
+}
+
+/* ========== 卡片网格 ========== */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: 4px;
+}
+
+/* ========== 用户卡片 ========== */
+.user-card {
+  display: flex;
+  align-items: center;
+  padding: 9px 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.02);
+  border: 1px solid transparent;
+  cursor: default;
+  transition: background 0.15s, border-color 0.15s;
+}
+.user-card:hover {
+  background: rgb(255 255 255 / 0.05);
+  border-color: rgb(255 255 255 / 0.06);
+}
+.user-card.is-friend {
+  background: rgb(74 222 128 / 0.03);
+}
+
+/* ========== 骨架卡片 ========== */
+.skeleton-card {
+  display: flex;
+  align-items: center;
+  padding: 9px 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.015);
+  border: 1px solid rgb(255 255 255 / 0.02);
+}
+
+/* ========== 卡片进出动画 ========== */
+.card-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.card-leave-active {
+  transition: all 0.2s ease-in;
+  position: absolute;
+}
+.card-enter-from {
+  opacity: 0;
+  transform: scale(0.9) translateY(6px);
+}
+.card-leave-to {
+  opacity: 0;
+  transform: scale(0.85);
+}
+.card-move {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ========== 自定义滚动条 ========== */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
+  margin: 4px 0;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #2d3748;
+  background: rgb(255 255 255 / 0.04);
   border-radius: 2px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #4a5568;
+  background: rgb(255 255 255 / 0.08);
 }
 </style>

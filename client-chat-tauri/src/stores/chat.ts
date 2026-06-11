@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, nextTick } from 'vue'
-import type { Message, Friend, ChatServiceType } from '../types'
+import type { Message, Friend, UserSortField, ChatServiceType } from '../types'
 import { chatService } from '../services'
 import { useAuthStore } from './auth'
 import { toast } from '../utils/toast'
@@ -104,8 +104,8 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /** 获取所有注册用户 */
-  async function fetchAllUsers() {
-    return chatService.fetchAllUsers()
+  async function fetchAllUsers(sort?: UserSortField) {
+    return chatService.fetchAllUsers(sort)
   }
 
   // ========== 消息操作 ==========

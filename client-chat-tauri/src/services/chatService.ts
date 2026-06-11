@@ -482,7 +482,7 @@ class SupabaseChatService implements IChatService {
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, nickname, employee_id, avatar_url, is_online, created_at')
       .or(`nickname.ilike.%${query}%,employee_id.ilike.%${query}%`)
       .limit(20)
 
@@ -496,15 +496,23 @@ class SupabaseChatService implements IChatService {
       nickname: p.nickname as string,
       email: '',
       avatar_url: (p.avatar_url as string) ?? undefined,
-      status: 'offline' as const,
+      status: ((p.is_online as boolean) ? 'online' : 'offline') as User['status'],
+      created_at: (p.created_at as string) ?? undefined,
     }))
   }
 
-  async fetchAllUsers(): Promise<User[]> {
+  async fetchAllUsers(sort?: string): Promise<User[]> {
     const supabase = getSupabase()
+
+    // 排序字段映射：前端字段 -> profiles 表列名
+    const sortColumn = sort === 'employee_id' ? 'employee_id'
+      : sort === 'nickname' ? 'nickname'
+      : 'created_at'
+
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, nickname, employee_id, avatar_url, is_online, created_at')
+      .order(sortColumn, { ascending: sortColumn === 'created_at' ? false : true })
       .limit(100)
 
     if (error) {
@@ -517,7 +525,8 @@ class SupabaseChatService implements IChatService {
       nickname: p.nickname as string,
       email: '',
       avatar_url: (p.avatar_url as string) ?? undefined,
-      status: 'offline' as const,
+      status: ((p.is_online as boolean) ? 'online' : 'offline') as User['status'],
+      created_at: (p.created_at as string) ?? undefined,
     }))
   }
 
