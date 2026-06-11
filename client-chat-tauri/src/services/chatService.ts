@@ -395,10 +395,10 @@ class SupabaseChatService implements IChatService {
         const friendProfile = Array.isArray(row.friend) ? row.friend[0] : row.friend
         const friendId = row.friend_id as string
 
-        // 获取最后一条消息（含 msg_type）
+        // 获取最后一条消息（含 msg_type、is_revoked、sender_id）
         const { data: lastMsgs } = await supabase
           .from('messages')
-          .select('content, msg_type, created_at')
+          .select('content, msg_type, created_at, is_revoked, sender_id')
           .or(
             `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),` +
             `and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
@@ -408,13 +408,22 @@ class SupabaseChatService implements IChatService {
 
         const lastMsg = lastMsgs?.[0] as Record<string, unknown> | undefined
 
-        // 获取未读消息计数（对方发给我的 is_read=false 的消息数）
+        // 构造 last_message 摘要：撤回消息按发送者身份显示不同文案
+        let lastMessageContent = lastMsg?.content as string | undefined
+        if (lastMsg?.is_revoked) {
+          lastMessageContent = (lastMsg.sender_id as string) === user.id
+            ? '你撤回了一条消息'
+            : '[消息已被撤回]'
+        }
+
+        // 获取未读消息计数（对方发给我的 is_read=false 且未撤回的消息数）
         const { count: unreadCount } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
           .eq('sender_id', friendId)
           .eq('receiver_id', user.id)
           .eq('is_read', false)
+          .eq('is_revoked', false)
 
         return {
           id: row.id as string,
@@ -423,7 +432,7 @@ class SupabaseChatService implements IChatService {
           employee_id: (friendProfile as Record<string, unknown> | null)?.employee_id as string ?? '',
           avatar_url: (friendProfile as Record<string, unknown> | null)?.avatar_url as string ?? undefined,
           online: (friendProfile as Record<string, unknown> | null)?.is_online as boolean ?? false,
-          last_message: lastMsg?.content as string | undefined,
+          last_message: lastMessageContent,
           last_message_type: lastMsg?.msg_type as Message['msg_type'] | undefined,
           last_message_at: lastMsg?.created_at as string | undefined,
           unread_count: unreadCount ?? 0,

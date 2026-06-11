@@ -10,6 +10,9 @@ import { invoke } from '@tauri-apps/api/core'
 /** 每次分页拉取的消息条数 */
 const PAGE_SIZE = 20
 
+/** localStorage key 前缀：按用户隔离撤回消息 ID 集合 */
+const REVOKED_IDS_KEY_PREFIX = 'chat_revoked_msg_ids_'
+
 export const useChatStore = defineStore('chat', () => {
   // ========== 状态 ==========
   const messages = ref<Message[]>([])
@@ -18,6 +21,61 @@ export const useChatStore = defineStore('chat', () => {
   const isLoading = ref(false)
   const isLoadingFriends = ref(false)
   const currentBackend = ref<ChatServiceType>('supabase')
+
+  /**
+   * 客户端撤回缓存：记录当前用户已成功撤回的消息 ID
+   *
+   * 作用：当 loadHistory 从服务端重新拉取消息时，若服务端因故未返回 is_revoked=true
+   * （Realtime 事件竞态、RLS 策略差异、后端实现差异等），客户端仍能通过此 Set 识别已撤回
+   * 的消息，确保"撤回标记不会因切换聊天对象而丢失"。
+   */
+  const revokedMessageIds = ref<Set<string>>(new Set())
+
+  // ========== 撤回缓存持久化（localStorage） ==========
+
+  function getRevokedIdsKey(): string {
+    const authStore = useAuthStore()
+    return REVOKED_IDS_KEY_PREFIX + (authStore.currentUser?.id ?? 'anonymous')
+  }
+
+  /** 从 localStorage 恢复撤回缓存 */
+  function loadRevokedIds() {
+    try {
+      const stored = localStorage.getItem(getRevokedIdsKey())
+      if (stored) {
+        const arr = JSON.parse(stored)
+        if (Array.isArray(arr)) {
+          revokedMessageIds.value = new Set(arr.filter((id): id is string => typeof id === 'string'))
+        }
+      }
+    } catch {
+      // localStorage 不可用或数据损坏时静默降级
+    }
+  }
+
+  /** 将撤回缓存写入 localStorage */
+  function saveRevokedIds() {
+    try {
+      const key = getRevokedIdsKey()
+      if (revokedMessageIds.value.size > 0) {
+        localStorage.setItem(key, JSON.stringify([...revokedMessageIds.value]))
+      } else {
+        localStorage.removeItem(key)
+      }
+    } catch {
+      // localStorage 不可用时静默降级
+    }
+  }
+
+  /** 清除撤回缓存（登出时调用） */
+  function clearRevokedIds() {
+    revokedMessageIds.value = new Set()
+    try {
+      localStorage.removeItem(getRevokedIdsKey())
+    } catch {
+      // 静默
+    }
+  }
 
   /** 历史消息是否还有更多（用于上拉加载） */
   const hasMore = ref(false)
@@ -59,6 +117,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /** 拉取好友列表 */
   async function loadFriends() {
+    // 首次加载好友时恢复客户端撤回缓存
+    loadRevokedIds()
+
     isLoadingFriends.value = true
     try {
       friends.value = await chatService.fetchFriends()
@@ -128,10 +189,14 @@ export const useChatStore = defineStore('chat', () => {
       // 撤回消息处理：
       // 1. 接收者侧：过滤掉已撤回的消息（不显示）
       // 2. 发送者侧：保留，但替换为 "你撤回了一条消息"
+      //
+      // 注意：除服务端返回的 is_revoked 外，还会叠加客户端撤回缓存
+      // （revokedMessageIds），防止切换聊天对象后因服务端数据不一致导致撤回标记丢失。
       const filtered: Message[] = []
       for (const m of history) {
-        if (m.is_revoked) {
+        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
           if (m.sender_id === authStore.currentUser.id) {
+            m.is_revoked = true
             m.content = '你撤回了一条消息'
             filtered.push(m)
           }
@@ -174,11 +239,12 @@ export const useChatStore = defineStore('chat', () => {
         oldestMsg.created_at
       )
 
-      // 撤回消息处理（同 loadHistory 逻辑）
+      // 撤回消息处理（同 loadHistory 逻辑，叠加客户端撤回缓存）
       const filtered: Message[] = []
       for (const m of olderMsgs) {
-        if (m.is_revoked) {
+        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
           if (m.sender_id === authStore.currentUser.id) {
+            m.is_revoked = true
             m.content = '你撤回了一条消息'
             filtered.push(m)
           }
@@ -215,6 +281,11 @@ export const useChatStore = defineStore('chat', () => {
     try {
       await chatService.revokeMessage(messageId)
       toast.success('撤回成功')
+
+      // 写入客户端撤回缓存（防止切换聊天对象后 loadHistory 重新拉取时丢失撤回标记）
+      revokedMessageIds.value.add(messageId)
+      saveRevokedIds()
+
       // 发送者侧：本地消息原地替换为 is_revoked 标记（Realtime UPDATE 回来之前先乐观更新）
       const idx = messages.value.findIndex((m) => m.id === messageId)
       if (idx !== -1) {
@@ -393,7 +464,10 @@ export const useChatStore = defineStore('chat', () => {
         const existingIdx = messages.value.findIndex((m) => m.id === newMsg.id)
 
         if (newMsg.is_revoked) {
+          // 同步到客户端撤回缓存（多端/多标签页场景下，其他客户端撤回也能缓存）
           if (newMsg.sender_id === authStore.currentUser.id) {
+            revokedMessageIds.value.add(newMsg.id)
+            saveRevokedIds()
             // 发送者侧：保留消息，标记为已撤回（显示 "你撤回了一条消息"）
             if (existingIdx !== -1) {
               messages.value[existingIdx] = { ...newMsg, content: '你撤回了一条消息' }
@@ -430,8 +504,10 @@ export const useChatStore = defineStore('chat', () => {
         const f = { ...friends.value[friendIndex] }
 
         if (newMsg.is_revoked) {
-          // 撤回：摘要显示为 "[消息已被撤回]"
-          f.last_message = '[消息已被撤回]'
+          // 撤回：发送者显示 "你撤回了一条消息"，接收者显示 "[消息已被撤回]"
+          f.last_message = newMsg.sender_id === authStore.currentUser.id
+            ? '你撤回了一条消息'
+            : '[消息已被撤回]'
           f.last_message_type = 'text' as Message['msg_type']
         } else if (!messages.value.some((m) => m.id === newMsg.id && m.is_revoked)) {
           // 非撤回的新消息才更新摘要
@@ -478,6 +554,9 @@ export const useChatStore = defineStore('chat', () => {
     // 先销毁所有实时订阅
     destroyRealtimeListener()
     destroyOnlineStatusListener()
+
+    // 清除客户端撤回缓存
+    clearRevokedIds()
 
     // 重置状态
     messages.value = []
