@@ -15,7 +15,7 @@ function searchFriends() {
 </script>
 
 <template>
-  <aside class="flex flex-col h-full bg-[#1e1935] border-r border-[#2a1f5e]">
+  <aside class="grid grid-rows-[auto_1fr_auto] h-full bg-[#1e1935] border-r border-[#2a1f5e]">
     <!-- 搜索栏 + 加好友 -->
     <div class="px-4 py-4 border-b border-[#2a1f5e]">
       <div class="flex items-center gap-2">
@@ -47,7 +47,7 @@ function searchFriends() {
     </div>
 
     <!-- 好友列表 -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar">
+    <div class="overflow-y-auto custom-scrollbar min-h-0">
       <!-- 加载骨架屏 -->
       <template v-if="chatStore.isLoadingFriends">
         <div v-for="n in 5" :key="'skel_' + n" class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 animate-pulse">
