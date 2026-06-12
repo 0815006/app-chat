@@ -485,7 +485,7 @@ function formatSeparatorTime(date: Date): string {
                   ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
                   : 'bg-[#1e293b] text-[#e2e8f0] rounded-bl-md'"
             >
-              <!-- 已撤回（仅发送者可见） -->
+              <!-- 已撤回（仅发送者可见此标记；接收者的消息在 store 中通过 splice 移除，不会渲染到这里） -->
               <p v-if="item.is_revoked" class="px-4 py-2.5 text-[13px] flex items-center gap-2">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-4 h-4 shrink-0 opacity-50">
                   <polyline points="1 4 1 10 7 10" stroke-linecap="round" stroke-linejoin="round"/>
