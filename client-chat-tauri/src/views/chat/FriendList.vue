@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import Avatar from '../../components/Avatar.vue'
-import type { Friend } from '../../types'
+import type { Friend, Group } from '../../types'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()
@@ -21,17 +21,16 @@ function searchFriends() {
  * - file: [文件]
  * - voice: [语音]
  */
-function lastMessagePreview(friend: Friend): string {
-  if (!friend.last_message) return ''
-  const type = friend.last_message_type
+function lastMessagePreview(lastMessage?: string, lastMessageType?: string): string {
+  if (!lastMessage) return ''
+  const type = lastMessageType
   if (!type || type === 'text') {
-    const text = friend.last_message
-    return text.length > 30 ? text.slice(0, 30) + '…' : text
+    return lastMessage.length > 30 ? lastMessage.slice(0, 30) + '…' : lastMessage
   }
   if (type === 'image') return '[图片]'
   if (type === 'file') return '[文件]'
   if (type === 'voice') return '[语音]'
-  return friend.last_message
+  return lastMessage
 }
 </script>
 
@@ -70,7 +69,7 @@ function lastMessagePreview(friend: Friend): string {
     <!-- 好友列表 -->
     <div class="overflow-y-auto custom-scrollbar min-h-0">
       <!-- 加载骨架屏 -->
-      <template v-if="chatStore.isLoadingFriends">
+      <template v-if="chatStore.isLoadingFriends || chatStore.isLoadingGroups">
         <div v-for="n in 5" :key="'skel_' + n" class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 animate-pulse">
           <div class="w-10 h-10 rounded-full bg-[#2d3748] shrink-0"></div>
           <div class="min-w-0 flex-1 space-y-1.5">
@@ -80,9 +79,64 @@ function lastMessagePreview(friend: Friend): string {
         </div>
       </template>
 
-      <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
-        在线 ({{ chatStore.onlineCount }})
-      </div>
+      <!-- ===== 群组列表 ===== -->
+      <template v-if="chatStore.groups.length > 0 && !chatStore.isLoadingGroups">
+        <div class="px-2 pt-2 pb-1 text-xs font-semibold text-[#718096] uppercase tracking-wider">
+          群组 ({{ chatStore.groups.length }})
+        </div>
+        <ul class="list-none m-0 p-0">
+          <li
+            v-for="group in chatStore.groups"
+            :key="group.id"
+            class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 hover:bg-[#252050]"
+            :class="chatStore.activeGroupId === group.id ? 'bg-[#252050] text-[#e2e8f0]' : 'text-[#a0aec0]'"
+            @click="chatStore.setActiveGroup(group.id)"
+          >
+            <!-- 群组默认图标 -->
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              :class="chatStore.activeGroupId === group.id
+                ? 'bg-gradient-to-br from-purple-400 to-pink-400'
+                : 'bg-[#2d284b]'"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5"
+                :class="chatStore.activeGroupId === group.id ? 'text-white' : 'text-[#a0aec0]'">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between">
+                <div class="text-[14px] font-medium truncate">{{ group.name }}</div>
+                <span
+                  v-if="(group.unread_count ?? 0) > 0"
+                  class="shrink-0 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 ml-1"
+                >
+                  {{ (group.unread_count ?? 0) > 99 ? '99+' : group.unread_count }}
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="text-[11px] text-[#718096]">{{ group.member_count ?? 0 }} 人</span>
+                <span v-if="lastMessagePreview(group.last_message, group.last_message_type)" class="text-[12px] text-[#718096] truncate">
+                  · {{ lastMessagePreview(group.last_message, group.last_message_type) }}
+                </span>
+              </div>
+            </div>
+          </li>
+        </ul>
+        <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
+          好友 · 在线 ({{ chatStore.onlineCount }})
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
+          在线 ({{ chatStore.onlineCount }})
+        </div>
+      </template>
+
+      <!-- 好友列表项 -->
       <ul class="list-none m-0 p-0">
         <li
           v-for="friend in chatStore.friends"
@@ -110,11 +164,11 @@ function lastMessagePreview(friend: Friend): string {
             </div>
             <!-- 最后一条消息预览 -->
             <div
-              v-if="lastMessagePreview(friend)"
+              v-if="lastMessagePreview(friend.last_message, friend.last_message_type)"
               class="text-[12px] text-[#718096] truncate mt-0.5"
               :class="{ 'text-[#e2e8f0]': (friend.unread_count ?? 0) > 0 }"
             >
-              {{ lastMessagePreview(friend) }}
+              {{ lastMessagePreview(friend.last_message, friend.last_message_type) }}
             </div>
             <div v-else-if="friend.employee_id" class="text-[12px] text-[#718096] truncate">
               {{ friend.employee_id }}
@@ -122,7 +176,10 @@ function lastMessagePreview(friend: Friend): string {
           </div>
         </li>
       </ul>
-      <div v-if="chatStore.friends.length === 0 && !chatStore.isLoading" class="text-center text-[13px] text-[#718096] py-8">
+      <div v-if="chatStore.friends.length === 0 && chatStore.groups.length === 0 && !chatStore.isLoading && !chatStore.isLoadingGroups" class="text-center text-[13px] text-[#718096] py-8">
+        暂无好友和群组
+      </div>
+      <div v-else-if="chatStore.friends.length === 0 && !chatStore.isLoadingFriends" class="text-center text-[13px] text-[#718096] py-8">
         暂无好友
       </div>
     </div>

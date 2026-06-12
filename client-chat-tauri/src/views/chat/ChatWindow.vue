@@ -336,9 +336,9 @@ const displayMessages = computed(() => {
   return result
 })
 
-// 切换好友 / 新消息时自动滚底（但不包括加载更多触发的消息变化）
+// 切换好友/群组 / 新消息时自动滚底（但不包括加载更多触发的消息变化）
 watch(
-  () => [chatStore.activeFriendId, chatStore.messages.length] as const,
+  () => [chatStore.activeFriendId, chatStore.activeGroupId, chatStore.messages.length] as const,
   async (_new, _old) => {
     // 如果是加载更多触发的（hasMore 从 true 变成了变化），不自动滚底
     if (isPullingMore.value) return
@@ -350,9 +350,9 @@ watch(
   }
 )
 
-// 切换好友时自动关闭右键菜单
+// 切换好友/群组时自动关闭右键菜单
 watch(
-  () => chatStore.activeFriendId,
+  () => [chatStore.activeFriendId, chatStore.activeGroupId] as const,
   () => {
     closeContextMenu()
   }
@@ -378,7 +378,10 @@ async function pullMoreHistory() {
   // 记录加载前的内容高度
   const prevScrollHeight = el.scrollHeight
 
-  const count = await chatStore.loadMoreHistory()
+  // 群聊和单聊使用不同的加载方法
+  const count = chatStore.activeGroupId
+    ? await chatStore.loadMoreGroupHistory()
+    : await chatStore.loadMoreHistory()
 
   if (count > 0) {
     await nextTick()
@@ -398,29 +401,79 @@ function isSeparator(item: Message | { _sep: boolean; time: Date }): item is { _
 function formatSeparatorTime(date: Date): string {
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
+
+/** 获取消息发送者的显示名称（群聊中需要显示发送者昵称） */
+function getSenderName(msg: Message): string {
+  if (msg.sender_id === authStore.currentUser?.id) return '我'
+  // 先从好友列表查找
+  const friend = chatStore.friends.find(f => f.friend_id === msg.sender_id)
+  if (friend) return friend.name
+  // fallback：显示用户 ID 前 8 位
+  return msg.sender_id.substring(0, 8)
+}
+
+/** 获取发送者头像 URL（群聊中他人的头像） */
+function getSenderAvatar(msg: Message): string | undefined {
+  if (msg.sender_id === authStore.currentUser?.id) return undefined
+  const friend = chatStore.friends.find(f => f.friend_id === msg.sender_id)
+  return friend?.avatar_url
+}
 </script>
 
 <template>
 <div class="contents">
-  <!-- 有好友时 -->
-  <main v-if="chatStore.activeFriendId" class="flex flex-col overflow-hidden bg-[#1a1a2e]">
+  <!-- 有活跃聊天时（好友或群组） -->
+  <main v-if="chatStore.activeChat" class="flex flex-col overflow-hidden bg-[#1a1a2e]">
     <!-- 顶栏 -->
     <header class="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3748] bg-[#1e1935] shrink-0">
-      <div class="flex items-center gap-3">
-        <Avatar
-          :name="chatStore.activeFriend?.name ?? ''"
-          :avatar-url="chatStore.activeFriend?.avatar_url"
-          :online="chatStore.activeFriend?.online"
-          size="sm"
-        />
-        <div>
-          <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeFriend?.name }}</div>
-          <div class="text-[12px] text-[#718096]">
-            <template v-if="chatStore.activeFriend?.online">在线</template>
-            <template v-else>离线 {{ chatStore.activeFriend?.last_message_at ? '· ' + new Date(chatStore.activeFriend.last_message_at).toLocaleString('zh-CN') : '' }}</template>
+      <!-- 群组顶栏 -->
+      <template v-if="chatStore.activeGroup">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center shadow-[0_2px_8px_rgba(168,85,247,0.2)]">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" class="w-5 h-5">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeGroup.name }}</div>
+            <div class="text-[12px] text-[#718096]">{{ chatStore.activeGroup.member_count ?? 0 }} 名成员</div>
           </div>
         </div>
-      </div>
+        <!-- 群设置按钮（显示成员面板） -->
+        <button
+          class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+          title="群成员"
+          @click="chatStore.showGroupMembersPanel = true"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="19" cy="12" r="1"/>
+            <circle cx="5" cy="12" r="1"/>
+          </svg>
+        </button>
+      </template>
+
+      <!-- 好友顶栏 -->
+      <template v-else>
+        <div class="flex items-center gap-3">
+          <Avatar
+            :name="chatStore.activeFriend?.name ?? ''"
+            :avatar-url="chatStore.activeFriend?.avatar_url"
+            :online="chatStore.activeFriend?.online"
+            size="sm"
+          />
+          <div>
+            <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeFriend?.name }}</div>
+            <div class="text-[12px] text-[#718096]">
+              <template v-if="chatStore.activeFriend?.online">在线</template>
+              <template v-else>离线 {{ chatStore.activeFriend?.last_message_at ? '· ' + new Date(chatStore.activeFriend.last_message_at).toLocaleString('zh-CN') : '' }}</template>
+            </div>
+          </div>
+        </div>
+      </template>
     </header>
 
     <!-- 消息区 -->
@@ -470,13 +523,21 @@ function formatSeparatorTime(date: Date): string {
           :class="item.sender_id === authStore.currentUser?.id ? 'self-end flex-row-reverse' : 'self-start'"
           @contextmenu.prevent="onContextMenu($event, item)"
         >
+          <!-- 群聊中他人消息显示发送者头像；单聊中显示好友头像 -->
           <Avatar
             v-if="item.sender_id !== authStore.currentUser?.id"
-            :name="chatStore.activeFriend?.name ?? ''"
-            :avatar-url="chatStore.activeFriend?.avatar_url"
+            :name="chatStore.activeGroup ? getSenderName(item) : (chatStore.activeFriend?.name ?? '')"
+            :avatar-url="chatStore.activeGroup ? getSenderAvatar(item) : chatStore.activeFriend?.avatar_url"
             size="sm"
           />
           <div>
+            <!-- 群聊中他人消息显示发送者名称 -->
+            <div
+              v-if="chatStore.activeGroup && item.sender_id !== authStore.currentUser?.id"
+              class="text-[11px] text-[#718096] mb-1 ml-1"
+            >
+              {{ getSenderName(item) }}
+            </div>
             <div
               class="rounded-2xl overflow-hidden"
               :class="item.is_revoked

@@ -7,7 +7,7 @@ import Avatar from '../../components/Avatar.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-
+const chatStore = useChatStore()
 
 const backendType = import.meta.env.VITE_BACKEND_TYPE as 'SUPABASE' | 'GO'
 const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
@@ -17,7 +17,6 @@ async function handleLogout() {
   await authStore.logout()
 
   // 重置聊天状态，防止下一个登录用户看到上一个用户的残留数据
-  const chatStore = useChatStore()
   chatStore.resetAll()
 
   router.replace('/login')
@@ -41,6 +40,20 @@ async function handleLogout() {
     </div>
 
     <div class="w-8 h-px bg-[#2a1f5e] my-2"></div>
+
+    <!-- 创建群聊 -->
+    <button
+      class="w-12 h-12 rounded-2xl flex items-center justify-center text-[#718096] transition-all duration-200 cursor-pointer hover:bg-purple-500/10 hover:text-purple-400 hover:rounded-xl"
+      title="创建群聊"
+      @click="chatStore.showCreateGroupDialog = true"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
 
     <!-- 头像（点击弹出个人信息弹窗） -->
     <!-- 直接使用 currentUser 而非 user computed，确保头像 URL 更新后立即响应 -->

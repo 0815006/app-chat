@@ -5,6 +5,8 @@ import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import TitleBar from '../../components/TitleBar.vue'
 import AddFriendDialog from '../../components/chat/AddFriendDialog.vue'
+import CreateGroupDialog from '../../components/chat/CreateGroupDialog.vue'
+import GroupMembersPanel from '../../components/chat/GroupMembersPanel.vue'
 import UserProfileDialog from '../../components/chat/UserProfileDialog.vue'
 import Sidebar from './Sidebar.vue'
 import FriendList from './FriendList.vue'
@@ -21,6 +23,8 @@ function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     if (chatStore.activeFriendId) {
       chatStore.setActiveFriend('')
+    } else if (chatStore.activeGroupId) {
+      chatStore.setActiveGroup('')
     }
     return
   }
@@ -57,8 +61,11 @@ onMounted(async () => {
   // 标记当前用户上线
   await chatStore.goOnline()
 
-  // 加载好友列表
-  await chatStore.loadFriends()
+  // 加载好友列表和群组列表
+  await Promise.all([
+    chatStore.loadFriends(),
+    chatStore.loadGroups(),
+  ])
 
   // 初始化实时消息监听
   chatStore.initRealtimeListener()
@@ -93,6 +100,18 @@ onUnmounted(() => {
     <AddFriendDialog
       :visible="chatStore.showAddFriendDialog"
       @close="chatStore.showAddFriendDialog = false"
+    />
+
+    <!-- 创建群组弹窗（由 Sidebar 建群按钮触发） -->
+    <CreateGroupDialog
+      :visible="chatStore.showCreateGroupDialog"
+      @close="chatStore.showCreateGroupDialog = false"
+    />
+
+    <!-- 群成员面板（由 ChatWindow 群设置按钮触发） -->
+    <GroupMembersPanel
+      :visible="chatStore.showGroupMembersPanel"
+      @close="chatStore.showGroupMembersPanel = false"
     />
 
     <!-- 个人信息弹窗（由 authStore.showProfileDialog 控制，点击头像触发） -->

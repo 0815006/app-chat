@@ -8,6 +8,8 @@ import type {
   UploadResult,
   User,
   Friend,
+  Group,
+  GroupMember,
 } from '../types'
 
 /**
@@ -346,6 +348,40 @@ class GoChatService implements IChatService {
 
   async deleteAvatar(): Promise<string> {
     throw new Error('Go 后端暂不支持删除头像')
+  }
+
+  // ==================== 群组 ====================
+
+  async createGroup(_name: string, _memberIds: string[]): Promise<Group> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async fetchGroups(): Promise<Group[]> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async fetchGroupHistory(_groupId: string, _limit?: number, _before?: string): Promise<[Message[], boolean]> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async fetchGroupMembers(_groupId: string): Promise<GroupMember[]> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async addGroupMember(_groupId: string, _userId: string): Promise<void> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async removeGroupMember(_groupId: string, _userId: string): Promise<void> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async dissolveGroup(_groupId: string): Promise<void> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  async markGroupMessagesAsRead(_groupId: string, _messageIds: string[]): Promise<void> {
+    throw new Error('Go 后端群聊功能尚未实现')
   }
 }
 

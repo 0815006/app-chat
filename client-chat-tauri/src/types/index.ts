@@ -28,8 +28,10 @@ export interface Message {
   content: string
   /** 发送者 user id (uuid) */
   sender_id: string
-  /** 接收者 user id (uuid) */
+  /** 接收者 user id (uuid)；群聊时 receiver_id 与 sender_id 相同（满足 FK 约束） */
   receiver_id: string
+  /** 群组 ID (uuid)；群聊时非空，单聊时为 NULL */
+  group_id?: string
   /** 发送时间 (ISO string) */
   created_at: string
   /** 是否已读 */
@@ -66,6 +68,67 @@ export interface Friend {
   employee_id?: string
 }
 
+/** 群组 */
+export interface Group {
+  /** 物理主键 (uuid) */
+  id: string
+  /** 群组名称 */
+  name: string
+  /** 群头像 URL */
+  avatar_url?: string
+  /** 群主 user id */
+  owner_id: string
+  /** 创建时间 (ISO string) */
+  created_at: string
+  /** 成员数量（由 fetchGroups 聚合填充） */
+  member_count?: number
+  /** 最后一条消息摘要 */
+  last_message?: string
+  /** 最后一条消息类型 */
+  last_message_type?: Message['msg_type']
+  /** 最后消息时间 */
+  last_message_at?: string
+  /** 未读消息数 */
+  unread_count?: number
+}
+
+/** 群成员 */
+export interface GroupMember {
+  /** 物理主键 (uuid) */
+  id: string
+  /** 群组 ID */
+  group_id: string
+  /** 用户 ID */
+  user_id: string
+  /** 角色 */
+  role: 'owner' | 'admin' | 'member'
+  /** 加入时间 (ISO string) */
+  joined_at: string
+  /** 成员昵称（关联查询填充） */
+  nickname?: string
+  /** 成员头像 */
+  avatar_url?: string
+  /** 成员工号 */
+  employee_id?: string
+  /** 在线状态 */
+  is_online?: boolean
+}
+
+/** "当前聊天目标"联合类型：可以是好友私聊，也可以是群聊 */
+export interface ChatTarget {
+  type: 'friend' | 'group'
+  /** friend_id 或 group_id */
+  id: string
+  /** 展示名称 */
+  name: string
+  /** 头像 URL */
+  avatar_url?: string
+  /** 仅 friend 类型：是否在线 */
+  online?: boolean
+  /** 仅 friend 类型：最后消息时间 */
+  last_message_at?: string
+}
+
 /** 用户列表排序字段 */
 export type UserSortField = 'created_at' | 'nickname' | 'employee_id'
 
@@ -94,6 +157,8 @@ export interface SendMessageParams {
   msg_type: Message['msg_type']
   sender_id: string
   receiver_id: string
+  /** 群组 ID，群聊时传入（单聊不传） */
+  group_id?: string
   /** 原始文件名（仅 file/image/voice 类型使用） */
   file_name?: string
   /** 文件字节数（仅 file/image/voice 类型使用） */
@@ -150,4 +215,22 @@ export interface IChatService {
   updateAvatar(file: File): Promise<string>
   /** 删除头像（恢复为默认无头像状态） */
   deleteAvatar(): Promise<string>
+
+  // ========== 群聊 ==========
+  /** 创建群组 + 同时添加群主和成员；返回创建的 Group */
+  createGroup(name: string, memberIds: string[]): Promise<Group>
+  /** 获取当前用户已加入的群组列表 */
+  fetchGroups(): Promise<Group[]>
+  /** 按群组 ID 分页拉取历史群消息 */
+  fetchGroupHistory(groupId: string, limit?: number, before?: string): Promise<[Message[], boolean]>
+  /** 获取群成员列表 */
+  fetchGroupMembers(groupId: string): Promise<GroupMember[]>
+  /** 拉人进群（群主/管理员） */
+  addGroupMember(groupId: string, userId: string): Promise<void>
+  /** 踢人 / 退出群聊 */
+  removeGroupMember(groupId: string, userId: string): Promise<void>
+  /** 解散群组（仅群主） */
+  dissolveGroup(groupId: string): Promise<void>
+  /** 标记群消息为已读 */
+  markGroupMessagesAsRead(groupId: string, messageIds: string[]): Promise<void>
 }

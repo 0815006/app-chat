@@ -9,6 +9,8 @@ import type {
   UploadResult,
   User,
   Friend,
+  Group,
+  GroupMember,
 } from '../types'
 
 /**
@@ -175,6 +177,8 @@ class SupabaseChatService implements IChatService {
       sender_id: msgData.sender_id,
       receiver_id: msgData.receiver_id,
     }
+    // 群聊消息：携带 group_id
+    if (msgData.group_id) insertPayload.group_id = msgData.group_id
     // 非文本消息携带文件元数据
     if (msgData.file_name) insertPayload.file_name = msgData.file_name
     if (msgData.file_size !== undefined) insertPayload.file_size = msgData.file_size
@@ -619,6 +623,234 @@ class SupabaseChatService implements IChatService {
 
     return () => {
       supabase.removeChannel(channel)
+    }
+  }
+
+  // ==================== 群聊 ====================
+
+  async createGroup(name: string, memberIds: string[]): Promise<Group> {
+    const supabase = getSupabase()
+    const { data, error } = await supabase.rpc('create_group', {
+      p_name: name,
+      p_member_ids: memberIds,
+    })
+
+    if (error) {
+      throw new Error(`创建群组失败: ${error.message}`)
+    }
+
+    const result = data as Record<string, unknown>
+    return {
+      id: result.id as string,
+      name: result.name as string,
+      avatar_url: result.avatar_url as string | undefined,
+      owner_id: result.owner_id as string,
+      created_at: result.created_at as string,
+    }
+  }
+
+  async fetchGroups(): Promise<Group[]> {
+    const supabase = getSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('未登录')
+
+    // 查询当前用户所属的所有群组
+    const { data: groupIds, error: memberError } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', user.id)
+
+    if (memberError) {
+      throw new Error(`获取群组列表失败: ${memberError.message}`)
+    }
+
+    if (!groupIds || groupIds.length === 0) return []
+
+    const ids = (groupIds as Array<{ group_id: string }>).map(r => r.group_id)
+
+    const { data: groups, error } = await supabase
+      .from('groups')
+      .select('*')
+      .in('id', ids)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      throw new Error(`获取群组详情失败: ${error.message}`)
+    }
+
+    // 聚合每个群的信息：成员数 + 最后一条消息
+    const result: Group[] = await Promise.all(
+      (groups ?? []).map(async (g: Record<string, unknown>) => {
+        const groupId = g.id as string
+
+        // 成员计数
+        const { count: memberCount } = await supabase
+          .from('group_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+
+        // 最后一条消息
+        const { data: lastMsgs } = await supabase
+          .from('messages')
+          .select('content, msg_type, created_at, is_revoked, sender_id')
+          .eq('group_id', groupId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        const lastMsg = lastMsgs?.[0] as Record<string, unknown> | undefined
+
+        let lastMessageContent = lastMsg?.content as string | undefined
+        if (lastMsg?.is_revoked) {
+          lastMessageContent = (lastMsg.sender_id as string) === user.id
+            ? '你撤回了一条消息'
+            : '[消息已被撤回]'
+        }
+
+        // 未读计数（group_id = groupId, is_read = false, sender_id != current user, NOT revoked）
+        const { count: unreadCount } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+          .eq('is_read', false)
+          .eq('is_revoked', false)
+          .neq('sender_id', user.id)
+
+        return {
+          id: groupId,
+          name: g.name as string,
+          avatar_url: g.avatar_url as string | undefined,
+          owner_id: g.owner_id as string,
+          created_at: g.created_at as string,
+          member_count: memberCount ?? 0,
+          last_message: lastMessageContent,
+          last_message_type: lastMsg?.msg_type as Message['msg_type'] | undefined,
+          last_message_at: lastMsg?.created_at as string | undefined,
+          unread_count: unreadCount ?? 0,
+        }
+      })
+    )
+
+    // 按最后消息时间倒序
+    result.sort((a, b) => {
+      const tA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0
+      const tB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0
+      return tB - tA
+    })
+
+    return result
+  }
+
+  async fetchGroupHistory(groupId: string, limit: number = 20, before?: string): Promise<[Message[], boolean]> {
+    const supabase = getSupabase()
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (before) {
+      query = query.lt('created_at', before)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      throw new Error(`获取群消息失败: ${error.message}`)
+    }
+
+    const msgs = (data ?? []) as Message[]
+    msgs.reverse()
+    const hasMore = msgs.length >= limit
+
+    return [msgs, hasMore]
+  }
+
+  async fetchGroupMembers(groupId: string): Promise<GroupMember[]> {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('group_members')
+      .select(`
+        id,
+        group_id,
+        user_id,
+        role,
+        joined_at,
+        profile:profiles!group_members_user_id_fkey (
+          nickname,
+          employee_id,
+          avatar_url,
+          is_online
+        )
+      `)
+      .eq('group_id', groupId)
+      .order('joined_at', { ascending: true })
+
+    if (error) {
+      throw new Error(`获取群成员失败: ${error.message}`)
+    }
+
+    return (data ?? []).map((row: Record<string, unknown>) => {
+      const p = (Array.isArray(row.profile) ? row.profile[0] : row.profile) as Record<string, unknown> | null
+      return {
+        id: row.id as string,
+        group_id: row.group_id as string,
+        user_id: row.user_id as string,
+        role: row.role as GroupMember['role'],
+        joined_at: row.joined_at as string,
+        nickname: (p?.nickname as string) ?? '未知用户',
+        avatar_url: (p?.avatar_url as string) ?? undefined,
+        employee_id: (p?.employee_id as string) ?? '',
+        is_online: (p?.is_online as boolean) ?? false,
+      }
+    })
+  }
+
+  async addGroupMember(groupId: string, userId: string): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('add_group_member', {
+      p_group_id: groupId,
+      p_user_id: userId,
+    })
+
+    if (error) {
+      throw new Error(`拉人进群失败: ${error.message}`)
+    }
+  }
+
+  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('remove_group_member', {
+      p_group_id: groupId,
+      p_user_id: userId,
+    })
+
+    if (error) {
+      throw new Error(`移除群成员失败: ${error.message}`)
+    }
+  }
+
+  async dissolveGroup(groupId: string): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('dissolve_group', {
+      p_group_id: groupId,
+    })
+
+    if (error) {
+      throw new Error(`解散群组失败: ${error.message}`)
+    }
+  }
+
+  async markGroupMessagesAsRead(groupId: string, messageIds: string[]): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .eq('group_id', groupId)
+      .in('id', messageIds)
+
+    if (error) {
+      throw new Error(`标记已读失败: ${error.message}`)
     }
   }
 }
