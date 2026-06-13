@@ -7,6 +7,8 @@ import Avatar from '../../components/Avatar.vue'
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const searchText = ref('')
+const groupsCollapsed = ref(false)
+const friendsCollapsed = ref(false)
 
 function searchFriends() {
   // 可对接搜索逻辑，当前使用 loadFriends
@@ -80,10 +82,20 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
 
       <!-- ===== 群组列表 ===== -->
       <template v-if="chatStore.groups.length > 0 && !chatStore.isLoadingGroups">
-        <div class="px-2 pt-2 pb-1 text-xs font-semibold text-[#718096] uppercase tracking-wider">
-          群组 ({{ chatStore.groups.length }})
+        <div
+          class="px-2 pt-2 pb-1 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          @click="groupsCollapsed = !groupsCollapsed"
+        >
+          <span>群组 ({{ chatStore.groups.length }})</span>
+          <svg
+            :class="groupsCollapsed ? 'rotate-0' : 'rotate-90'"
+            class="w-3 h-3 transition-transform duration-200"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+          >
+            <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <ul class="list-none m-0 p-0">
+        <ul v-show="!groupsCollapsed" class="list-none m-0 p-0">
           <li
             v-for="group in chatStore.groups"
             :key="group.id"
@@ -124,19 +136,39 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
             </div>
           </li>
         </ul>
-        <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
-          好友 · 在线 ({{ chatStore.onlineCount }})
+        <div
+          class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          @click="friendsCollapsed = !friendsCollapsed"
+        >
+          <span>好友 · 在线 ({{ chatStore.onlineCount }})</span>
+          <svg
+            :class="friendsCollapsed ? 'rotate-0' : 'rotate-90'"
+            class="w-3 h-3 transition-transform duration-200"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+          >
+            <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       </template>
 
       <template v-else>
-        <div class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider">
-          在线 ({{ chatStore.onlineCount }})
+        <div
+          class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          @click="friendsCollapsed = !friendsCollapsed"
+        >
+          <span>在线 ({{ chatStore.onlineCount }})</span>
+          <svg
+            :class="friendsCollapsed ? 'rotate-0' : 'rotate-90'"
+            class="w-3 h-3 transition-transform duration-200"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+          >
+            <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       </template>
 
       <!-- 好友列表项 -->
-      <ul class="list-none m-0 p-0">
+      <ul v-show="!friendsCollapsed" class="list-none m-0 p-0">
         <li
           v-for="friend in chatStore.friends"
           :key="friend.friend_id"
