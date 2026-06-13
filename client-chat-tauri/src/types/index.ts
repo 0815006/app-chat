@@ -225,12 +225,18 @@ export interface IChatService {
   fetchGroupHistory(groupId: string, limit?: number, before?: string): Promise<[Message[], boolean]>
   /** 获取群成员列表 */
   fetchGroupMembers(groupId: string): Promise<GroupMember[]>
-  /** 拉人进群（群主/管理员） */
+  /** 拉人进群（任何群成员均可邀请） */
   addGroupMember(groupId: string, userId: string): Promise<void>
+  /** 修改群组名称（任何群成员均可修改） */
+  updateGroupName(groupId: string, name: string): Promise<void>
   /** 踢人 / 退出群聊 */
   removeGroupMember(groupId: string, userId: string): Promise<void>
   /** 解散群组（仅群主） */
   dissolveGroup(groupId: string): Promise<void>
   /** 标记群消息为已读 */
   markGroupMessagesAsRead(groupId: string, messageIds: string[]): Promise<void>
+  /** 订阅 group_members 表 INSERT 事件（被邀请进群时实时感知） */
+  subscribeToGroupMembers(callback: (event: { groupId: string; userId: string }) => void): () => void
+  /** 订阅 groups 表 UPDATE 事件（群名修改时所有成员实时同步） */
+  subscribeToGroupUpdates(callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void
 }

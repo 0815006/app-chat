@@ -72,6 +72,12 @@ onMounted(async () => {
 
   // 初始化在线状态监听（订阅 profiles 表 is_online 变更）
   chatStore.initOnlineStatusListener()
+
+  // 初始化群成员实时感知（被邀请进群时自动刷新群列表）
+  chatStore.initGroupMembersListener()
+
+  // 初始化群组更新实时同步（群名修改时所有成员实时感知）
+  chatStore.initGroupUpdateListener()
 })
 
 onUnmounted(() => {
@@ -80,6 +86,8 @@ onUnmounted(() => {
   chatStore.goOffline()
   chatStore.destroyRealtimeListener()
   chatStore.destroyOnlineStatusListener()
+  chatStore.destroyGroupMembersListener()
+  chatStore.destroyGroupUpdateListener()
 })
 </script>
 

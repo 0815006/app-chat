@@ -13,7 +13,8 @@ const isUploading = ref(false)
 
 async function sendTextMessage() {
   const content = inputText.value.trim()
-  if (!content || !chatStore.activeFriendId) return
+  const hasTarget = chatStore.activeFriendId !== null || chatStore.activeGroupId !== null
+  if (!content || !hasTarget) return
 
   inputText.value = ''
   await chatStore.sendMessage(content)
@@ -53,8 +54,8 @@ function onDrop(e: DragEvent) {
  * 统一处理文件列表（来自选择或拖拽）
  */
 async function handleFiles(files: File[]) {
-  if (!chatStore.activeFriendId) {
-    toast.warning('请先选择一个好友再发送文件')
+  if (!chatStore.activeFriendId && !chatStore.activeGroupId) {
+    toast.warning('请先选择一个好友或群组再发送文件')
     return
   }
 
@@ -83,7 +84,7 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
 
 <template>
   <div
-    v-if="chatStore.activeFriendId"
+    v-if="chatStore.activeFriendId || chatStore.activeGroupId"
     class="col-start-3 px-5 py-3 bg-[#1e1935] border-t border-[#2d3748] flex items-center gap-3"
     @dragover.prevent
     @drop.prevent="onDrop"
@@ -127,7 +128,7 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
     <!-- 发送按钮 -->
     <button
       class="w-11 h-11 rounded-xl border-none bg-gradient-to-br from-blue-400 to-green-400 text-white cursor-pointer flex items-center justify-center shrink-0 transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-      :disabled="!inputText.trim() || !chatStore.activeFriendId || isUploading"
+      :disabled="!inputText.trim() || (!chatStore.activeFriendId && !chatStore.activeGroupId) || isUploading"
       @click="sendTextMessage"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">

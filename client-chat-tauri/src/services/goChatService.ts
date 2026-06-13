@@ -380,8 +380,22 @@ class GoChatService implements IChatService {
     throw new Error('Go 后端群聊功能尚未实现')
   }
 
+  async updateGroupName(_groupId: string, _name: string): Promise<void> {
+    throw new Error('Go 后端群聊功能尚未实现')
+  }
+
   async markGroupMessagesAsRead(_groupId: string, _messageIds: string[]): Promise<void> {
     throw new Error('Go 后端群聊功能尚未实现')
+  }
+
+  subscribeToGroupMembers(_callback: (event: { groupId: string; userId: string }) => void): () => void {
+    // Go 后端暂不支持，返回空操作
+    return () => {}
+  }
+
+  subscribeToGroupUpdates(_callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void {
+    // Go 后端暂不支持，返回空操作
+    return () => {}
   }
 }
 

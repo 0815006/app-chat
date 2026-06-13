@@ -140,6 +140,8 @@ export const useChatStore = defineStore('chat', () => {
   // 存储取消订阅的函数
   let unsubscribeRealtime: (() => void) | null = null
   let unsubscribeOnlineStatus: (() => void) | null = null
+  let unsubscribeGroupMembers: (() => void) | null = null
+  let unsubscribeGroupUpdates: (() => void) | null = null
 
   // ========== 后端切换 ==========
 
@@ -297,6 +299,25 @@ export const useChatStore = defineStore('chat', () => {
       toast.success('群组已解散')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '解散群组失败')
+    }
+  }
+
+  /** 修改群名（任何群成员均可执行） */
+  async function updateGroupName(groupId: string, name: string) {
+    try {
+      await chatService.updateGroupName(groupId, name)
+      // 更新本地群组缓存
+      const idx = groups.value.findIndex(g => g.id === groupId)
+      if (idx !== -1) {
+        groups.value[idx] = { ...groups.value[idx], name }
+      }
+      if (activeGroup.value?.id === groupId) {
+        activeGroup.value = { ...activeGroup.value, name }
+      }
+      toast.success('群名已更新')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '修改群名失败')
+      throw e
     }
   }
 
@@ -736,7 +757,10 @@ export const useChatStore = defineStore('chat', () => {
               messages.value[existingIdx] = { ...newMsg, content: '你撤回了一条消息' }
             }
           } else {
-            // 接收者侧：直接从列表中移除
+            // 接收者侧：直接从列表中移除，同时写入客户端撤回缓存
+            // 防止切换聊天对象后重新加载历史时因服务端数据延迟导致消息复现
+            revokedMessageIds.value.add(newMsg.id)
+            saveRevokedIds()
             if (existingIdx !== -1) {
               messages.value.splice(existingIdx, 1)
             }
@@ -840,6 +864,69 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 初始化群成员实时感知（被邀请进群时自动刷新群列表） */
+  function initGroupMembersListener() {
+    if (unsubscribeGroupMembers) {
+      return
+    }
+
+    const authStore = useAuthStore()
+
+    unsubscribeGroupMembers = chatService.subscribeToGroupMembers(
+      (event: { groupId: string; userId: string }) => {
+        // 仅当被邀请的成员是自己时才刷新群列表
+        if (event.userId === authStore.currentUser?.id) {
+          loadGroups()
+        }
+      }
+    )
+  }
+
+  /** 取消群成员实时感知订阅 */
+  function destroyGroupMembersListener() {
+    if (unsubscribeGroupMembers) {
+      unsubscribeGroupMembers()
+      unsubscribeGroupMembers = null
+    }
+  }
+
+  /** 初始化群组更新实时同步（群名修改时所有成员实时感知） */
+  function initGroupUpdateListener() {
+    if (unsubscribeGroupUpdates) {
+      return
+    }
+
+    unsubscribeGroupUpdates = chatService.subscribeToGroupUpdates(
+      (event: { groupId: string; name: string; avatar_url: string }) => {
+        // 同步 groups 列表中对应群组的信息
+        const idx = groups.value.findIndex(g => g.id === event.groupId)
+        if (idx !== -1) {
+          groups.value[idx] = {
+            ...groups.value[idx],
+            name: event.name,
+            avatar_url: event.avatar_url,
+          }
+        }
+        // 如果当前正在查看该群组，同步更新 activeGroup
+        if (activeGroup.value?.id === event.groupId) {
+          activeGroup.value = {
+            ...activeGroup.value,
+            name: event.name,
+            avatar_url: event.avatar_url,
+          }
+        }
+      }
+    )
+  }
+
+  /** 取消群组更新实时同步订阅 */
+  function destroyGroupUpdateListener() {
+    if (unsubscribeGroupUpdates) {
+      unsubscribeGroupUpdates()
+      unsubscribeGroupUpdates = null
+    }
+  }
+
   /**
    * 重置所有聊天状态（登出时调用）
    * 确保下一个登录用户看到的是干净的聊天界面
@@ -848,6 +935,8 @@ export const useChatStore = defineStore('chat', () => {
     // 先销毁所有实时订阅
     destroyRealtimeListener()
     destroyOnlineStatusListener()
+    destroyGroupMembersListener()
+    destroyGroupUpdateListener()
 
     // 清除客户端撤回缓存
     clearRevokedIds()
@@ -913,6 +1002,7 @@ export const useChatStore = defineStore('chat', () => {
     addGroupMember,
     removeGroupMember,
     dissolveGroup,
+    updateGroupName,
     // 消息操作
     loadHistory,
     loadMoreHistory,
@@ -930,6 +1020,12 @@ export const useChatStore = defineStore('chat', () => {
     initOnlineStatusListener,
     destroyOnlineStatusListener,
     scrollToBottom,
+    // 群成员实时感知
+    initGroupMembersListener,
+    destroyGroupMembersListener,
+    // 群组更新实时同步
+    initGroupUpdateListener,
+    destroyGroupUpdateListener,
     // 状态重置（登出时清理）
     resetAll,
   }

@@ -15,6 +15,48 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 const containerRef = ref<HTMLDivElement>()
 
+/** 群名内联编辑状态 */
+const editingGroupName = ref(false)
+const editingGroupNameInput = ref<HTMLInputElement>()
+const editingGroupNameValue = ref('')
+const isSavingGroupName = ref(false)
+
+/** 双击群名开始编辑 */
+function startEditGroupName() {
+  if (!chatStore.activeGroup || editingGroupName.value) return
+  editingGroupNameValue.value = chatStore.activeGroup.name
+  editingGroupName.value = true
+  nextTick(() => {
+    editingGroupNameInput.value?.focus()
+    editingGroupNameInput.value?.select()
+  })
+}
+
+/** 保存群名 */
+async function saveGroupName() {
+  if (!chatStore.activeGroup || isSavingGroupName.value) return
+  const newName = editingGroupNameValue.value.trim()
+  if (!newName || newName === chatStore.activeGroup.name) {
+    editingGroupName.value = false
+    return
+  }
+  isSavingGroupName.value = true
+  try {
+    await chatStore.updateGroupName(chatStore.activeGroup.id, newName)
+    editingGroupName.value = false
+  } catch {
+    // toast already shown in store
+  } finally {
+    isSavingGroupName.value = false
+  }
+}
+
+/** 取消编辑 */
+function cancelEditGroupName() {
+  editingGroupName.value = false
+  editingGroupNameValue.value = ''
+}
+
 /** 图片预览状态 */
 const previewVisible = ref(false)
 const previewSrc = ref('')
@@ -320,6 +362,13 @@ const displayMessages = computed(() => {
     const prev = msgs[i - 1]
     const curr = msgs[i]
 
+    // 防御性过滤：群聊中非发送者的已撤回消息不应渲染
+    // （正常情况下由 store 层 initRealtimeListener 中 splice 移除；
+    //   此处作为 UI 层兜底，防止竞争条件导致撤回消息泄漏到渲染层）
+    if (curr.is_revoked && curr.sender_id !== authStore.currentUser?.id) {
+      continue
+    }
+
     if (prev) {
       const gap = new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime()
       if (gap > TIME_GAP_MS) {
@@ -437,8 +486,50 @@ function getSenderAvatar(msg: Message): string | undefined {
               <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <div>
-            <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeGroup.name }}</div>
+          <div class="flex-1 min-w-0">
+            <!-- 群名：可双击编辑 -->
+            <div class="flex items-center gap-1.5 group/name">
+              <template v-if="editingGroupName">
+                <input
+                  ref="editingGroupNameInput"
+                  v-model="editingGroupNameValue"
+                  type="text"
+                  class="bg-[#0c0820] border border-purple-400/40 rounded-md px-2 py-0.5 text-[15px] font-semibold text-[#e2e8f0] focus:outline-none focus:border-purple-400 w-48"
+                  maxlength="30"
+                  @keydown.enter="saveGroupName"
+                  @keydown.escape="cancelEditGroupName"
+                  @blur="cancelEditGroupName"
+                />
+                <button
+                  class="shrink-0 w-5 h-5 rounded flex items-center justify-center text-green-400 hover:bg-green-400/10 cursor-pointer"
+                  :disabled="isSavingGroupName"
+                  @mousedown.prevent="saveGroupName"
+                  title="保存"
+                >
+                  <span v-if="isSavingGroupName" class="w-2.5 h-2.5 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></span>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-3 h-3">
+                    <polyline points="20 6 9 17 4 12" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button
+                  class="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] cursor-pointer"
+                  @mousedown.prevent="cancelEditGroupName"
+                  title="取消"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3">
+                    <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </template>
+              <template v-else>
+                <span
+                  class="text-[15px] font-semibold text-[#e2e8f0] truncate cursor-pointer hover:text-purple-400 transition-colors duration-150"
+                  title="双击修改群名"
+                  @dblclick.stop="startEditGroupName"
+                >{{ chatStore.activeGroup.name }}</span>
+                <span class="text-[10px] text-[#475569] opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0">✎</span>
+              </template>
+            </div>
             <div class="text-[12px] text-[#718096]">{{ chatStore.activeGroup.member_count ?? 0 }} 名成员</div>
           </div>
         </div>

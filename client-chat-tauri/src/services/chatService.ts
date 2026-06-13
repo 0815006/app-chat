@@ -818,6 +818,18 @@ class SupabaseChatService implements IChatService {
     }
   }
 
+  async updateGroupName(groupId: string, name: string): Promise<void> {
+    const supabase = getSupabase()
+    const { error } = await supabase.rpc('update_group_name', {
+      p_group_id: groupId,
+      p_name: name,
+    })
+
+    if (error) {
+      throw new Error(`修改群名失败: ${error.message}`)
+    }
+  }
+
   async removeGroupMember(groupId: string, userId: string): Promise<void> {
     const supabase = getSupabase()
     const { error } = await supabase.rpc('remove_group_member', {
@@ -851,6 +863,55 @@ class SupabaseChatService implements IChatService {
 
     if (error) {
       throw new Error(`标记已读失败: ${error.message}`)
+    }
+  }
+
+  // ==================== 群成员实时感知 ====================
+
+  subscribeToGroupMembers(callback: (event: { groupId: string; userId: string }) => void): () => void {
+    const supabase = getSupabase()
+    const channel = supabase
+      .channel('group-members-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'group_members' },
+        (payload) => {
+          const newRow = payload.new as Record<string, unknown>
+          callback({
+            groupId: newRow.group_id as string,
+            userId: newRow.user_id as string,
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }
+
+  // ==================== 群组信息更新实时同步 ====================
+
+  subscribeToGroupUpdates(callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void {
+    const supabase = getSupabase()
+    const channel = supabase
+      .channel('group-updates-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'groups' },
+        (payload) => {
+          const updated = payload.new as Record<string, unknown>
+          callback({
+            groupId: updated.id as string,
+            name: updated.name as string,
+            avatar_url: updated.avatar_url as string,
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
   }
 }

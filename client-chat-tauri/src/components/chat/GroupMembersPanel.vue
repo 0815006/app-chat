@@ -2,7 +2,8 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
-import type { GroupMember } from '../../types'
+import type { GroupMember, User } from '../../types'
+import { toast } from '../../utils/toast'
 import Avatar from '../Avatar.vue'
 
 const props = defineProps<{
@@ -20,6 +21,17 @@ const members = ref<GroupMember[]>([])
 const isLoading = ref(false)
 const isRemoving = ref<Set<string>>(new Set())
 
+// ========== 邀请成员状态 ==========
+const showInviteSection = ref(false)
+const inviteKeyword = ref('')
+const inviteResults = ref<User[]>([])
+const isSearchingInvite = ref(false)
+const inviteSearched = ref(false)
+const invitingIds = ref<Set<string>>(new Set())
+
+/** 已加入的成员 ID 集合（用于排除已加入的用户） */
+const memberIds = ref<Set<string>>(new Set())
+
 /** 当前用户是否是群主 */
 const isOwner = () => {
   if (!chatStore.activeGroup) return false
@@ -32,6 +44,7 @@ async function loadMembers() {
   isLoading.value = true
   try {
     members.value = await chatStore.fetchGroupMembers(chatStore.activeGroup.id)
+    memberIds.value = new Set(members.value.map(m => m.user_id))
   } finally {
     isLoading.value = false
   }
@@ -45,6 +58,7 @@ async function kickMember(member: GroupMember) {
     await chatStore.removeGroupMember(chatStore.activeGroup.id, member.user_id)
     // 从本地列表移除
     members.value = members.value.filter(m => m.user_id !== member.user_id)
+    memberIds.value.delete(member.user_id)
   } finally {
     isRemoving.value.delete(member.user_id)
   }
@@ -75,6 +89,10 @@ async function dissolveGroup() {
 /** 关闭面板 */
 function close() {
   members.value = []
+  showInviteSection.value = false
+  inviteKeyword.value = ''
+  inviteResults.value = []
+  inviteSearched.value = false
   emit('close')
 }
 
@@ -83,11 +101,77 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') close()
 }
 
+// ========== 邀请成员逻辑 ==========
+
+/** 切换邀请区域显示 */
+function toggleInviteSection() {
+  showInviteSection.value = !showInviteSection.value
+  if (!showInviteSection.value) {
+    inviteKeyword.value = ''
+    inviteResults.value = []
+    inviteSearched.value = false
+  }
+}
+
+/** 搜索用户 */
+async function searchInviteUsers() {
+  const q = inviteKeyword.value.trim()
+  if (q.length < 2) {
+    inviteResults.value = []
+    inviteSearched.value = false
+    return
+  }
+  isSearchingInvite.value = true
+  inviteSearched.value = true
+  try {
+    const users = await chatStore.searchUsers(q)
+    // 排除自己（可能已在群中但也不算结果）和已在群中的成员
+    inviteResults.value = users.filter(u => u.id !== authStore.currentUser?.id && !memberIds.value.has(u.id))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : '搜索失败')
+    inviteResults.value = []
+  } finally {
+    isSearchingInvite.value = false
+  }
+}
+
+/** 邀请用户进群 */
+async function inviteUser(user: User) {
+  if (!chatStore.activeGroup || invitingIds.value.has(user.id)) return
+  invitingIds.value.add(user.id)
+  try {
+    await chatStore.addGroupMember(chatStore.activeGroup.id, user.id)
+    // 添加到本地列表
+    members.value.push({
+      id: '',
+      group_id: chatStore.activeGroup.id,
+      user_id: user.id,
+      nickname: user.nickname,
+      avatar_url: user.avatar_url,
+      employee_id: user.employee_id,
+      role: 'member' as const,
+      joined_at: new Date().toISOString(),
+      is_online: false,
+    })
+    memberIds.value.add(user.id)
+    // 从搜索结果中移除
+    inviteResults.value = inviteResults.value.filter(u => u.id !== user.id)
+  } catch {
+    // toast already shown in store
+  } finally {
+    invitingIds.value.delete(user.id)
+  }
+}
+
 // 可见性变化时加载数据
 watch(
   () => props.visible,
   async (v) => {
     if (v) {
+      showInviteSection.value = false
+      inviteKeyword.value = ''
+      inviteResults.value = []
+      inviteSearched.value = false
       await loadMembers()
     }
   }
@@ -113,7 +197,7 @@ onUnmounted(() => {
     <Transition name="panel">
       <div
         v-if="visible"
-        class="fixed right-0 top-0 bottom-0 z-50 w-[340px] bg-[#141028] border-l border-white/[0.06] shadow-[-8px_0_30px_rgba(0,0,0,0.4)] flex flex-col"
+        class="fixed right-0 top-0 bottom-0 z-50 w-[360px] bg-[#141028] border-l border-white/[0.06] shadow-[-8px_0_30px_rgba(0,0,0,0.4)] flex flex-col"
         @keydown="onKeydown"
       >
         <!-- 标题栏 -->
@@ -126,18 +210,107 @@ onUnmounted(() => {
                 <span v-if="chatStore.activeGroup.member_count">· {{ chatStore.activeGroup.member_count }} 人</span>
               </p>
             </div>
-            <button
-              class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
-              @click="close"
-              aria-label="关闭"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
-                <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
-              </svg>
-            </button>
+            <div class="flex items-center gap-1.5">
+              <!-- 邀请成员按钮（任何群成员均可邀请） -->
+              <button
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-purple-400 hover:bg-purple-400/10 transition-all duration-200 cursor-pointer"
+                :class="{ 'bg-purple-400/10 text-purple-400': showInviteSection }"
+                title="邀请成员"
+                @click="toggleInviteSection"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="8.5" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                  <line x1="20" y1="8" x2="20" y2="14" stroke-linecap="round"/>
+                  <line x1="23" y1="11" x2="17" y2="11" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <!-- 关闭按钮 -->
+              <button
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+                @click="close"
+                aria-label="关闭"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
+                  <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="mt-3 h-px bg-gradient-to-r from-purple-400/30 via-transparent to-transparent"></div>
         </div>
+
+        <!-- 邀请成员区域 -->
+        <transition name="invite-slide">
+          <div v-if="showInviteSection" class="shrink-0 px-5 pb-3">
+            <div class="flex items-center gap-2 mb-2.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 text-purple-400 shrink-0">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="8.5" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="20" y1="8" x2="20" y2="14" stroke-linecap="round"/>
+                <line x1="23" y1="11" x2="17" y2="11" stroke-linecap="round"/>
+              </svg>
+              <span class="text-[13px] font-medium text-[#e2e8f0]">邀请新成员</span>
+            </div>
+            <!-- 搜索框 -->
+            <div class="relative mb-2">
+              <input
+                v-model="inviteKeyword"
+                type="text"
+                placeholder="搜索用户（至少 2 个字符）..."
+                class="w-full bg-[#0c0820] border border-white/[0.06] rounded-lg px-3 py-2 text-[13px] text-[#e2e8f0] placeholder-[#475569] focus:border-purple-400/40 focus:outline-none transition-all duration-200"
+                @keydown.enter="searchInviteUsers"
+                @input="inviteSearched = false"
+              />
+              <button
+                class="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 text-[12px] text-purple-400 hover:bg-purple-400/10 rounded-md transition-all duration-200 cursor-pointer"
+                :disabled="inviteKeyword.trim().length < 2 || isSearchingInvite"
+                @click="searchInviteUsers"
+              >
+                <template v-if="isSearchingInvite">
+                  <span class="w-3 h-3 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin inline-block"></span>
+                </template>
+                <template v-else>搜索</template>
+              </button>
+            </div>
+
+            <!-- 搜索结果 -->
+            <div v-if="isSearchingInvite" class="flex items-center justify-center py-3">
+              <span class="w-3.5 h-3.5 border-2 border-[#718096]/30 border-t-purple-400 rounded-full animate-spin"></span>
+              <span class="text-[12px] text-[#64748b] ml-2">搜索中...</span>
+            </div>
+            <div v-else-if="inviteSearched && inviteResults.length === 0" class="text-center py-3">
+              <span class="text-[12px] text-[#475569]">未找到可邀请的用户</span>
+            </div>
+            <div v-else-if="inviteResults.length > 0" class="space-y-1 max-h-36 overflow-y-auto custom-scrollbar">
+              <div
+                v-for="user in inviteResults"
+                :key="user.id"
+                class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors duration-150"
+              >
+                <Avatar
+                  :name="user.nickname ?? '?'"
+                  :avatar-url="user.avatar_url"
+                  size="sm"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="text-[12px] text-[#e2e8f0] truncate">{{ user.nickname ?? '未知用户' }}</div>
+                  <div class="text-[10px] text-[#475569] truncate">{{ user.employee_id || '' }}<template v-if="!user.employee_id">&nbsp;</template></div>
+                </div>
+                <button
+                  class="shrink-0 px-2.5 py-1 text-[11px] rounded-md bg-purple-400/10 border border-purple-400/20 text-purple-400 hover:bg-purple-400/20 hover:border-purple-400/35 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  :disabled="invitingIds.has(user.id)"
+                  @click="inviteUser(user)"
+                >
+                  <template v-if="invitingIds.has(user.id)">
+                    <span class="w-2.5 h-2.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin inline-block"></span>
+                  </template>
+                  <template v-else>邀请</template>
+                </button>
+              </div>
+            </div>
+          </div>
+        </transition>
 
         <!-- 成员列表 -->
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-5 py-2">
@@ -265,6 +438,34 @@ onUnmounted(() => {
 }
 .panel-leave-to {
   transform: translateX(100%);
+}
+
+/* ========== 邀请区域过渡 ========== */
+.invite-slide-enter-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.invite-slide-leave-active {
+  transition: all 0.2s ease-in;
+}
+.invite-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+}
+.invite-slide-enter-to {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 200px;
+}
+.invite-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 200px;
+}
+.invite-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
 }
 
 /* ========== 自定义滚动条 ========== */

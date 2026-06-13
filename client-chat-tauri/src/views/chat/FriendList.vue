@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import Avatar from '../../components/Avatar.vue'
-import type { Friend, Group } from '../../types'
 
 const authStore = useAuthStore()
 const chatStore = useChatStore()

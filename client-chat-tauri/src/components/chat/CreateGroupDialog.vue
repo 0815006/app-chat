@@ -3,7 +3,6 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
 import { toast } from '../../utils/toast'
-import type { Friend } from '../../types'
 import Avatar from '../Avatar.vue'
 
 const props = defineProps<{
@@ -283,10 +282,23 @@ watch(
           <!-- ========== Step 2: 设置群名 ========== -->
           <template v-if="step === 'name'">
             <div class="flex-1 px-6 py-5 space-y-4">
-              <!-- 已选成员预览 -->
+              <!-- 已选成员预览（创建者 + 选中好友） -->
               <div>
-                <label class="text-[12px] text-[#64748b] mb-2 block">群成员 ({{ selectedCount }} 人)</label>
+                <label class="text-[12px] text-[#64748b] mb-2 block">群成员 ({{ selectedCount + 1 }} 人)</label>
                 <div class="flex flex-wrap gap-1.5">
+                  <!-- 创建者自己 -->
+                  <div
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-400/10 border border-purple-400/25"
+                  >
+                    <Avatar
+                      :name="authStore.currentUser?.nickname ?? '我'"
+                      :avatar-url="authStore.currentUser?.avatar_url"
+                      size="sm"
+                    />
+                    <span class="text-[13px] text-purple-300">{{ authStore.currentUser?.nickname ?? '我' }}</span>
+                    <span class="text-[10px] px-1 py-0.5 rounded bg-amber-400/10 text-amber-400 shrink-0">群主</span>
+                  </div>
+                  <!-- 选中的好友 -->
                   <div
                     v-for="friend in selectedFriends"
                     :key="friend.friend_id"
