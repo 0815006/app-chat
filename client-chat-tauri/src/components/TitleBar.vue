@@ -26,7 +26,7 @@ async function maximize() {
 
 async function close() {
   if (!isTauri) { console.log('[TitleBar] 非 Tauri 环境，跳过 close'); return }
-  try { await getWin().close() } catch (e) { console.error('[TitleBar] close 失败:', e) }
+  try { await getWin().hide() } catch (e) { console.error('[TitleBar] hide 失败:', e) }
 }
 </script>
 

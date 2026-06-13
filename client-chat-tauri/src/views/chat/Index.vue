@@ -99,7 +99,7 @@ onUnmounted(() => {
     <!-- 聊天主网格 -->
     <div class="flex-1 grid grid-cols-[64px_280px_1fr] grid-rows-[1fr_68px] overflow-hidden">
       <Sidebar class="row-span-2" />
-      <FriendList />
+      <FriendList class="row-span-2" />
       <ChatWindow />
       <InputArea />
     </div>

@@ -15,10 +15,7 @@ const backendLabel = backendType === 'GO' ? 'Go 自建后端' : 'Supabase'
 /** 退出登录并跳转到登录页 */
 async function handleLogout() {
   await authStore.logout()
-
-  // 重置聊天状态，防止下一个登录用户看到上一个用户的残留数据
   chatStore.resetAll()
-
   router.replace('/login')
 }
 </script>
@@ -65,7 +62,7 @@ async function handleLogout() {
       @click="authStore.showProfileDialog = true"
     />
 
-    <!-- 登出 -->
+    <!-- 退出登录（mt-auto 推至底部，与 FriendList 用户信息行对齐） -->
     <button
       class="w-12 h-12 rounded-2xl flex items-center justify-center text-[#718096] transition-all duration-200 cursor-pointer hover:bg-red-500/10 hover:text-[#fc8181] hover:rounded-xl mt-auto"
       title="退出登录"
