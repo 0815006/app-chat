@@ -134,6 +134,7 @@ go-chat-server/
   export { chatService }
   ```
   **④ 消费规则** — Pinia Store 及其它模块**只能**从 `src/services/index.ts` import `chatService` 实例，**严禁**直接 import 具体适配器类或 `new` 适配器。全站仅此一处实例化入口。
+  **⑤ 编译时隔离** — 当 `VITE_BACKEND_TYPE` 为 `SUPABASE` 时，`GoChatService` 实例不会被构造，浏览器端**禁止启动任何自建 WebSocket 连接逻辑**（原生 `new WebSocket()`），避免前端报连接错误。仅在 `VITE_BACKEND_TYPE === 'GO'` 时，Go 适配器内的 Axios 拦截器与 WebSocket 客户端才允许初始化。
 
 ### 2.3 聊天主界面布局骨架规范 (CSS Grid)
 
@@ -226,6 +227,7 @@ export default defineConfig({
 - 除 `/login` 外，所有路由必须在进入前检查登录状态（调用 `supabase.auth.getSession()`），未登录者强制跳转至 `/login`。
 - 登录成功后，通过 `router.replace(route.query.redirect as string ?? '/chat')` 跳转至目标页。
 - 路由守卫中禁止直接 import `src/stores/auth.ts`（造成循环依赖），应使用 Supabase 客户端实例直接检查 session。
+> **特例说明**：由于 Pinia 尚未初始化完毕且为避免循环依赖，路由守卫（`router.beforeEach`）是全站唯一允许直接引入全局 `supabase` 客户端实例的视图关联文件。
 - 路由懒加载：所有页面级组件均使用 `() => import()` 动态导入，实现代码分割。
 
 ```ts
@@ -289,7 +291,7 @@ router.beforeEach(async (to, _from, next) => {
 - 在 `chatStore` 中通过 `initRealtimeListener` 方法订阅 `messages` 表的 `INSERT` 事件。
 - 收到新消息后，仅当消息的 `sender_id` 或 `receiver_id` 与当前活跃聊天好友匹配时，才 push 到响应式 `messages` 数组中。
 - **避免重复订阅**：`initRealtimeListener` 方法必须检查是否已有活跃订阅，防止多次调用产生重复消息。
-- **必须**在 Supabase 后台 -> Database -> Replication 中，为 `messages` 表开启 Realtime 发布。详细操作参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 7 章。
+- **必须**在 Supabase 后台 -> Database -> Replication 中，为 `messages` 表开启 Realtime 发布。
 
 ### 3.4 文件存储 (Storage)
 
@@ -307,7 +309,7 @@ router.beforeEach(async (to, _from, next) => {
 - **Web/API 框架**：`Gin`（处理 HTTP 请求：注册、登录、好友列表、历史消息等）。
 - **WebSocket 框架**：`Melody`（基于 gorilla/websocket 封装，负责实时消息长连接）。
 - **ORM 框架**：`GORM`（操作 MySQL，使用 AutoMigrate 自动建表同步结构）。
-- **缓存**：`Redis`（管理用户在线状态、WebSocket 连接映射、离线消息缓冲）。
+- **缓存**：`Redis`（可选，通过 `config.yaml` 开关控制；管理在线状态、未读计数、离线消息缓冲）。
 - **鉴权**：JWT (JSON Web Token)，登录时发放，WebSocket 连接时校验。
 
 ### 4.2 API 路径规范
@@ -362,6 +364,14 @@ router.beforeEach(async (to, _from, next) => {
 - 错误必须处理，禁止忽略 `err` 返回值。
 - 使用 `context.Context` 传递请求上下文，支持超时控制。
 
+### 4.7 Redis 弹性降级与双轨规范
+
+- **开关控制**：`config.yaml` 中 `redis.enable` 控制启停；关闭时 `global.RDB` 置 `nil`，系统以纯 MySQL 模式平滑启动，禁止 panic。
+- **在线状态**：`global.RDB != nil` 时写 `SET online:{uid}`；否则降级为本地 Go 内存 map（`mgr.clients`），禁止触发 Redis 读写。
+- **未读计数**：`global.RDB != nil` 时用 `INCR unread:{uid}` 原子递增；否则降级为 MySQL `SELECT COUNT(*)` 实时计算。
+- **离线缓冲**：`global.RDB != nil` 时 `LPUSH offline_msg:{uid}` 暂存；否则消息直接写 MySQL 归档，接收方上线后从 `WHERE is_read=false` 拉取。
+- **代码铁律**：所有 Redis 调用必须包裹 `if global.RDB != nil` 守卫，严禁在任何无 Redis 环境下因空指针导致崩溃。
+
 ---
 
 ## 5. 数据库规范
@@ -377,8 +387,7 @@ router.beforeEach(async (to, _from, next) => {
 
 ### 5.2 核心业务表结构 (Supabase / PostgreSQL)
 
-> 完整建表 SQL、索引优化及常用查询参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 4 章。
-> 一键执行脚本：[`docs/更新表结构.sql`](../docs/更新表结构.sql)
+> 完整建表 SQL、索引优化及常用查询参见docs目录下的序号开头的sql文件。
 
 #### 5.2.1 用户资料表 (`profiles`)
 
@@ -415,11 +424,11 @@ router.beforeEach(async (to, _from, next) => {
 | `is_read` | `BOOLEAN` | 是否已读 |
 | `created_at` | `TIMESTAMPTZ` | 发送时间 |
 
-- 查询历史消息时，使用 OR 条件匹配双向对话（具体 SQL 参见指导手册 4.3 节）。
+- 查询历史消息时，使用 OR 条件匹配双向对话。
 
 ### 5.3 Row Level Security (RLS) 策略
 
-Supabase 默认开启 RLS，必须显式添加以下 **7 条最小策略**才能正常读写。完整 SQL 及调试方法参见 [`docs/Supabase 使用指导手册.md`](../docs/Supabase%20使用指导手册.md) 第 5 章。
+Supabase 默认开启 RLS，必须显式添加以下 **7 条最小策略**才能正常读写。完整 SQL 及调试方法参见docs目录下的带序号的sql文件。
 
 | # | 表 | 操作 | 策略名称 | 规则 |
 |---|----|------|---------|------|
