@@ -105,3 +105,64 @@ func (s *UserService) GetByID(ctx context.Context, id string) (*model.User, erro
 	}
 	return &user, nil
 }
+
+// UpdateNickname 更新用户昵称
+func (s *UserService) UpdateNickname(ctx context.Context, userID, nickname string) (*model.User, error) {
+	if err := global.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Update("nickname", nickname).Error; err != nil {
+		return nil, fmt.Errorf("更新昵称失败: %w", err)
+	}
+	return s.GetByID(ctx, userID)
+}
+
+// UpdateAvatar 更新用户头像
+func (s *UserService) UpdateAvatar(ctx context.Context, userID, avatarURL string) (*model.User, error) {
+	if err := global.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Update("avatar_url", avatarURL).Error; err != nil {
+		return nil, fmt.Errorf("更新头像失败: %w", err)
+	}
+	return s.GetByID(ctx, userID)
+}
+
+// DeleteAvatar 删除用户头像
+func (s *UserService) DeleteAvatar(ctx context.Context, userID string) (*model.User, error) {
+	if err := global.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Update("avatar_url", "").Error; err != nil {
+		return nil, fmt.Errorf("删除头像失败: %w", err)
+	}
+	return s.GetByID(ctx, userID)
+}
+
+// SearchUsers 搜索用户（按昵称或工号模糊搜索）
+func (s *UserService) SearchUsers(ctx context.Context, query string, limit int) ([]model.User, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	var users []model.User
+	err := global.DB.WithContext(ctx).
+		Where("nickname LIKE ? OR employee_id LIKE ?", "%"+query+"%", "%"+query+"%").
+		Limit(limit).
+		Find(&users).Error
+	if err != nil {
+		return nil, fmt.Errorf("搜索用户失败: %w", err)
+	}
+	return users, nil
+}
+
+// ListUsers 获取所有用户列表（支持排序）
+func (s *UserService) ListUsers(ctx context.Context, sort string, limit int) ([]model.User, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	orderClause := "created_at DESC"
+	switch sort {
+	case "nickname":
+		orderClause = "nickname ASC"
+	case "employee_id":
+		orderClause = "employee_id ASC"
+	}
+
+	var users []model.User
+	err := global.DB.WithContext(ctx).Order(orderClause).Limit(limit).Find(&users).Error
+	if err != nil {
+		return nil, fmt.Errorf("查询用户列表失败: %w", err)
+	}
+	return users, nil
+}

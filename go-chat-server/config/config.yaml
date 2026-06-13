@@ -7,13 +7,14 @@ database:
   host: 127.0.0.1
   port: 3306
   user: root
-  password: ""
-  dbname: go_chat
+  password: "root"
+  dbname: chat_db
   charset: utf8mb4
   parse_time: true
   loc: Local
 
 redis:
+  enable: true          # 是否启用 Redis（关闭后纯 MySQL 模式）
   addr: 127.0.0.1:6379
   password: ""
   db: 0
@@ -21,3 +22,10 @@ redis:
 jwt:
   secret: "go-chat-server-jwt-secret-change-in-production"
   expire_hours: 72
+
+upload:
+  dir: "./uploads"              # 文件上传存储目录
+  url_prefix: "http://127.0.0.1:8080/uploads"  # 静态文件访问 URL 前缀
+  max_img: 10    # 图片最大尺寸(MB)
+  max_file: 50   # 文件最大尺寸(MB)
+  max_voice: 5   # 语音最大尺寸(MB)

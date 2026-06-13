@@ -45,6 +45,11 @@ class GoChatService implements IChatService {
       throw new Error(`登录失败: ${json.message}`)
     }
 
+    // 持久化 token 到 localStorage，供路由守卫和 restoreSession 使用
+    if (json.data.token) {
+      localStorage.setItem('go-chat-token', json.data.token as string)
+    }
+
     return { user: json.data.user, session: json.data.token }
   }
 
@@ -69,6 +74,11 @@ class GoChatService implements IChatService {
       throw new Error(`注册失败: ${json.message}`)
     }
 
+    // 持久化 token 到 localStorage
+    if (json.data.token) {
+      localStorage.setItem('go-chat-token', json.data.token as string)
+    }
+
     return { user: json.data.user, session: json.data.token }
   }
 
@@ -79,6 +89,8 @@ class GoChatService implements IChatService {
       this.ws.close()
       this.ws = null
     }
+    // 清除持久化的 token
+    localStorage.removeItem('go-chat-token')
   }
 
   async restoreSession(): Promise<{ user: User; session: unknown } | null> {
@@ -98,7 +110,9 @@ class GoChatService implements IChatService {
     const json = await res.json()
     if (json.code !== 200) return null
 
-    return { user: json.data.user, session: token }
+    // Go 后端 RecoverSession 直接返回 data = User 对象（非嵌套 data.user）
+    const u = json.data as User
+    return { user: u, session: token }
   }
 
   // ==================== 消息 ====================
@@ -132,13 +146,16 @@ class GoChatService implements IChatService {
     const token = localStorage.getItem('go-chat-token')
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // WebSocket 实时发送
+      // WebSocket 实时发送（type: 'chat' 对齐 Go 后端 onMessage 路由）
       this.ws.send(JSON.stringify({
-        type: 'message',
+        type: 'chat',
         sender_id: msgData.sender_id,
         receiver_id: msgData.receiver_id,
         content: msgData.content,
         msg_type: msgData.msg_type,
+        group_id: msgData.group_id,
+        file_name: msgData.file_name,
+        file_size: msgData.file_size,
       }))
 
       // 返回一个临时消息（Go 后端会通过 WebSocket 推送正式消息）
@@ -148,6 +165,7 @@ class GoChatService implements IChatService {
         receiver_id: msgData.receiver_id,
         content: msgData.content,
         msg_type: msgData.msg_type,
+        group_id: msgData.group_id,
         created_at: new Date().toISOString(),
       }
     }
@@ -290,8 +308,20 @@ class GoChatService implements IChatService {
 
   // ==================== 实时消息 ====================
 
+  // WebSocket 消息分流回调（通过 WebSocket 聚合所有实时事件）
+  private onMessageCallback: ((message: Message) => void) | null = null
+  private onOnlineStatusCallback: ((event: { userId: string; isOnline: boolean }) => void) | null = null
+  private onGroupMemberJoinCallback: ((event: { groupId: string; userId: string }) => void) | null = null
+  private onGroupUpdateCallback: ((event: { groupId: string; name: string; avatar_url: string }) => void) | null = null
+
   subscribeToMessages(callback: (message: Message) => void): () => void {
     const token = localStorage.getItem('go-chat-token')
+    if (!token) {
+      console.warn('[GoChatService] 无 token，跳过 WebSocket 连接')
+      return () => {}
+    }
+
+    this.onMessageCallback = callback
     this.ws = new WebSocket(`${this.wsUrl()}?token=${token}`)
 
     this.ws.onopen = () => {
@@ -300,8 +330,35 @@ class GoChatService implements IChatService {
 
     this.ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data) as Message
-        callback(msg)
+        const raw = JSON.parse(event.data)
+        switch (raw.type) {
+          case 'chat':
+          case 'message_revoke':
+            this.onMessageCallback?.(raw as Message)
+            break
+          case 'online_status':
+            this.onOnlineStatusCallback?.({
+              userId: raw.user_id as string,
+              isOnline: raw.is_online as boolean,
+            })
+            break
+          case 'group_member_join':
+            this.onGroupMemberJoinCallback?.({
+              groupId: raw.group_id as string,
+              userId: raw.user_id as string,
+            })
+            break
+          case 'group_update':
+            this.onGroupUpdateCallback?.({
+              groupId: raw.group_id as string,
+              name: raw.name as string,
+              avatar_url: raw.avatar_url as string,
+            })
+            break
+          default:
+            // 兼容旧格式（无 type 字段的纯 Message）
+            this.onMessageCallback?.(raw as Message)
+        }
       } catch {
         console.error('[GoChatService] WebSocket 消息解析失败')
       }
@@ -326,76 +383,266 @@ class GoChatService implements IChatService {
   // ==================== 在线状态 ====================
 
   async goOnline(): Promise<void> {
-    // Go 后端可通过 HTTP PUT /api/users/online 实现
+    const token = localStorage.getItem('go-chat-token')
+    if (!token) return
+    await fetch(`${this.baseUrl()}/api/users/online`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    })
   }
 
   async goOffline(): Promise<void> {
-    // Go 后端可通过 HTTP PUT /api/users/offline 实现
+    const token = localStorage.getItem('go-chat-token')
+    if (!token) return
+    await fetch(`${this.baseUrl()}/api/users/offline`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+    })
   }
 
-  subscribeToOnlineStatus(_callback: (event: { userId: string; isOnline: boolean }) => void): () => void {
-    // Go 后端暂不支持，返回空操作
-    return () => {}
+  subscribeToOnlineStatus(callback: (event: { userId: string; isOnline: boolean }) => void): () => void {
+    this.onOnlineStatusCallback = callback
+    return () => {
+      this.onOnlineStatusCallback = null
+    }
   }
 
-  async updateProfile(_nickname: string): Promise<User> {
-    throw new Error('Go 后端暂不支持修改个人信息')
+  async updateProfile(nickname: string): Promise<User> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/me`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ nickname }),
+    })
+
+    if (!res.ok) throw new Error(`更新个人信息失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`更新个人信息失败: ${json.message}`)
+    return json.data as User
   }
 
-  async updateAvatar(_file: File): Promise<string> {
-    throw new Error('Go 后端暂不支持上传头像')
+  async updateAvatar(file: File): Promise<string> {
+    const token = localStorage.getItem('go-chat-token')
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const res = await fetch(`${this.baseUrl()}/api/me/avatar`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+
+    if (!res.ok) throw new Error(`上传头像失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`上传头像失败: ${json.message}`)
+    return json.data.avatar_url as string
   }
 
   async deleteAvatar(): Promise<string> {
-    throw new Error('Go 后端暂不支持删除头像')
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/me/avatar`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!res.ok) throw new Error(`删除头像失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`删除头像失败: ${json.message}`)
+    return json.data.avatar_url as string
   }
 
   // ==================== 群组 ====================
 
-  async createGroup(_name: string, _memberIds: string[]): Promise<Group> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async createGroup(name: string, memberIds: string[]): Promise<Group> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/groups`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, member_ids: memberIds }),
+    })
+
+    if (!res.ok) throw new Error(`创建群组失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`创建群组失败: ${json.message}`)
+    return json.data as Group
   }
 
   async fetchGroups(): Promise<Group[]> {
-    throw new Error('Go 后端群聊功能尚未实现')
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/groups`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!res.ok) throw new Error(`获取群组列表失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`获取群组列表失败: ${json.message}`)
+    // Go GroupResponse 字段与前端 Group 接口一一对应，无需转换
+    return (json.data ?? []) as Group[]
   }
 
-  async fetchGroupHistory(_groupId: string, _limit?: number, _before?: string): Promise<[Message[], boolean]> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async fetchGroupHistory(groupId: string, limit: number = 20, before?: string): Promise<[Message[], boolean]> {
+    const token = localStorage.getItem('go-chat-token')
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (before) params.set('before', before)
+
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/history?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
+    if (!res.ok) throw new Error(`获取群聊历史失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`获取群聊历史失败: ${json.message}`)
+    return [json.data as Message[], json.has_more as boolean]
   }
 
-  async fetchGroupMembers(_groupId: string): Promise<GroupMember[]> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async fetchGroupMembers(groupId: string): Promise<GroupMember[]> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/members`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
+    if (!res.ok) throw new Error(`获取群成员失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`获取群成员失败: ${json.message}`)
+
+    // Go 返回 GroupMember[] 含 Preload("User")，需扁平化为前端 GroupMember 类型
+    const members = (json.data ?? []) as Array<{
+      id: string
+      group_id: string
+      user_id: string
+      role: 'owner' | 'admin' | 'member'
+      joined_at: string
+      user?: {
+        id: string
+        nickname: string
+        employee_id?: string
+        avatar_url?: string
+        email?: string
+        created_at?: string
+        updated_at?: string
+      }
+    }>
+
+    return members.map((m) => ({
+      id: m.id,
+      group_id: m.group_id,
+      user_id: m.user_id,
+      role: m.role,
+      joined_at: m.joined_at,
+      nickname: m.user?.nickname ?? '未知用户',
+      avatar_url: m.user?.avatar_url,
+      employee_id: m.user?.employee_id ?? '',
+      is_online: false,
+    }))
   }
 
-  async addGroupMember(_groupId: string, _userId: string): Promise<void> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async addGroupMember(groupId: string, userId: string): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/members`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_id: userId }),
+      }
+    )
+
+    if (!res.ok) throw new Error(`拉人进群失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`拉人进群失败: ${json.message}`)
   }
 
-  async removeGroupMember(_groupId: string, _userId: string): Promise<void> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async removeGroupMember(groupId: string, userId: string): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    )
+
+    if (!res.ok) throw new Error(`移除群成员失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`移除群成员失败: ${json.message}`)
   }
 
-  async dissolveGroup(_groupId: string): Promise<void> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async dissolveGroup(groupId: string): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    )
+
+    if (!res.ok) throw new Error(`解散群组失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`解散群组失败: ${json.message}`)
   }
 
-  async updateGroupName(_groupId: string, _name: string): Promise<void> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async updateGroupName(groupId: string, name: string): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/name`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name }),
+      }
+    )
+
+    if (!res.ok) throw new Error(`修改群名失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`修改群名失败: ${json.message}`)
   }
 
-  async markGroupMessagesAsRead(_groupId: string, _messageIds: string[]): Promise<void> {
-    throw new Error('Go 后端群聊功能尚未实现')
+  async markGroupMessagesAsRead(groupId: string, messageIds: string[]): Promise<void> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(
+      `${this.baseUrl()}/api/groups/${encodeURIComponent(groupId)}/messages/read`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ids: messageIds }),
+      }
+    )
+
+    if (!res.ok) throw new Error(`标记群消息已读失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`标记群消息已读失败: ${json.message}`)
   }
 
-  subscribeToGroupMembers(_callback: (event: { groupId: string; userId: string }) => void): () => void {
-    // Go 后端暂不支持，返回空操作
-    return () => {}
+  subscribeToGroupMembers(callback: (event: { groupId: string; userId: string }) => void): () => void {
+    this.onGroupMemberJoinCallback = callback
+    return () => {
+      this.onGroupMemberJoinCallback = null
+    }
   }
 
-  subscribeToGroupUpdates(_callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void {
-    // Go 后端暂不支持，返回空操作
-    return () => {}
+  subscribeToGroupUpdates(callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void {
+    this.onGroupUpdateCallback = callback
+    return () => {
+      this.onGroupUpdateCallback = null
+    }
   }
 }
 

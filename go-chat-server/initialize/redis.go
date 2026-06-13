@@ -12,6 +12,12 @@ import (
 
 // InitRedis 初始化 Redis 客户端
 func InitRedis(cfg *config.Config) error {
+	// 如果 Redis 未启用，跳过初始化
+	if !cfg.Redis.Enable {
+		global.RDB = nil
+		return nil
+	}
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr,
 		Password: cfg.Redis.Password,

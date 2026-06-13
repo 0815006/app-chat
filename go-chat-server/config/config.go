@@ -12,6 +12,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
+	Upload   UploadConfig   `mapstructure:"upload"`
 }
 
 // ServerConfig 服务器配置
@@ -40,6 +41,7 @@ func (d *DatabaseConfig) DSN() string {
 
 // RedisConfig Redis 配置
 type RedisConfig struct {
+	Enable   bool   `mapstructure:"enable"`
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
@@ -49,6 +51,15 @@ type RedisConfig struct {
 type JWTConfig struct {
 	Secret      string `mapstructure:"secret"`
 	ExpireHours int    `mapstructure:"expire_hours"`
+}
+
+// UploadConfig 文件上传配置
+type UploadConfig struct {
+	Dir    string `mapstructure:"dir"`    // 上传文件存储目录
+	MaxImg int64  `mapstructure:"max_img"` // 图片最大尺寸(MB)
+	MaxFile int64 `mapstructure:"max_file"` // 文件最大尺寸(MB)
+	MaxVoice int64 `mapstructure:"max_voice"` // 语音最大尺寸(MB)
+	URLPrefix string `mapstructure:"url_prefix"` // 静态文件访问 URL 前缀
 }
 
 var cfg *Config

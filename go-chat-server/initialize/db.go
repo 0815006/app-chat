@@ -34,6 +34,8 @@ func InitDB(cfg *config.Config) error {
 		&model.User{},
 		&model.Message{},
 		&model.Friendship{},
+		&model.Group{},
+		&model.GroupMember{},
 	); err != nil {
 		return fmt.Errorf("AutoMigrate 失败: %w", err)
 	}
