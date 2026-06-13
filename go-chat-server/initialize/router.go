@@ -1,11 +1,14 @@
 package initialize
 
 import (
+	"time"
+
 	"go-chat-server/api"
 	"go-chat-server/config"
 	"go-chat-server/im"
 	"go-chat-server/middleware"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,6 +17,19 @@ func InitRouter(cfg *config.Config) *gin.Engine {
 	// 设置 Gin 运行模式
 	gin.SetMode(cfg.Server.Mode)
 	r := gin.Default()
+
+	// CORS 跨域中间件 — 本地桌面应用无 CSRF 风险，放行所有 origin
+	// 注：生产部署时可按需收紧为特定域名
+	r.Use(cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// 静态文件服务（上传文件公开访问）
 	uploadDir := cfg.Upload.Dir

@@ -19,10 +19,22 @@ import type {
 class GoChatService implements IChatService {
   private ws: WebSocket | null = null
 
+  /**
+   * HTTP 请求基路径。
+   * 开发模式：空字符串 → 走 Vite 代理（避免跨域 CORS 错误）
+   * 生产模式：直连 Go 后端绝对地址
+   */
   private baseUrl(): string {
+    if (import.meta.env.DEV) {
+      return ''  // 相对路径 → Vite 代理 → Go 后端
+    }
     return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8080'
   }
 
+  /**
+   * WebSocket 连接地址。
+   * 开发/生产统一用绝对 URL（WebSocket 不走 Vite HTTP 代理，Go 后端 CORS 中间件放行）
+   */
   private wsUrl(): string {
     return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8080/ws'
   }
@@ -139,7 +151,10 @@ class GoChatService implements IChatService {
     if (!res.ok) throw new Error(`获取历史消息失败: HTTP ${res.status}`)
     const json = await res.json()
     if (json.code !== 200) throw new Error(`获取历史消息失败: ${json.message}`)
-    return [json.data as Message[], json.has_more as boolean]
+    // Go 后端返回 DESC（新→旧），翻转为 ASC（旧→新）对齐 Supabase 行为
+    const msgs = (json.data ?? []) as Message[]
+    msgs.reverse()
+    return [msgs, json.has_more as boolean]
   }
 
   async sendMessage(msgData: SendMessageParams): Promise<Message> {
@@ -499,7 +514,10 @@ class GoChatService implements IChatService {
     if (!res.ok) throw new Error(`获取群聊历史失败: HTTP ${res.status}`)
     const json = await res.json()
     if (json.code !== 200) throw new Error(`获取群聊历史失败: ${json.message}`)
-    return [json.data as Message[], json.has_more as boolean]
+    // Go 后端返回 DESC（新→旧），翻转为 ASC（旧→新）对齐 Supabase 行为
+    const msgs = (json.data ?? []) as Message[]
+    msgs.reverse()
+    return [msgs, json.has_more as boolean]
   }
 
   async fetchGroupMembers(groupId: string): Promise<GroupMember[]> {

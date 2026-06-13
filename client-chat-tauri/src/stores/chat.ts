@@ -773,7 +773,15 @@ export const useChatStore = defineStore('chat', () => {
         } else {
           // INSERT 事件：幂等追加
           if (!messages.value.some((m) => m.id === newMsg.id)) {
-            messages.value.push(newMsg)
+            // Go 后端 WebSocket 回显：替换发送者自己的临时占位消息（id 为空），避免重复
+            const tempIdx = messages.value.findIndex(
+              (m) => m.id === '' && m.sender_id === newMsg.sender_id && m.content === newMsg.content
+            )
+            if (tempIdx !== -1) {
+              messages.value[tempIdx] = newMsg
+            } else {
+              messages.value.push(newMsg)
+            }
           }
         }
 

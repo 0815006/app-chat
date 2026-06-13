@@ -149,6 +149,12 @@ func UploadAvatar(c *gin.Context) {
 		return
 	}
 
+	// 将头像 URL 持久化到 users 表，否则重新登录后丢失
+	if _, err := userSvc.UpdateAvatar(c.Request.Context(), userID.(string), url); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存头像失败: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "上传成功",
