@@ -170,6 +170,8 @@ export const useChatStore = defineStore('chat', () => {
   /** 设置当前活跃好友（接受 friendId 字符串或 Friend 对象） */
   async function setActiveFriend(friendOrId: string | Friend) {
     const id = typeof friendOrId === 'string' ? friendOrId : friendOrId.friend_id
+    // 先清除群组选中状态，确保 ChatWindow 标题正确切换到好友
+    activeGroup.value = null
     const found = friends.value.find(f => f.friend_id === id) ?? null
     activeFriend.value = found
     if (found) {

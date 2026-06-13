@@ -184,7 +184,7 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
     </div>
 
     <!-- 底部当前用户 -->
-    <div class="flex items-center gap-3 px-4 py-3 bg-[#17132b] border-t border-[#2a1f5e]">
+    <div class="flex items-center gap-3 px-4 h-[68px] bg-[#17132b] border-t border-[#2a1f5e]">
       <Avatar
         :name="authStore.currentUser?.nickname ?? ''"
         :avatar-url="authStore.currentUser?.avatar_url"
