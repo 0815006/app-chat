@@ -1,0 +1,20 @@
+[Unit]
+Description=Tauri Go Chat Server Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/chat-server
+ExecStart=/root/chat-server/go-chat-server
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chat-server
+
+# 安全加固（可选）
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
