@@ -1,6 +1,6 @@
 # go-chat-server 配置文件
 server:
-  port: 8080
+  port: 8094
   mode: debug  # debug | release | test
 
 database:
@@ -25,7 +25,7 @@ jwt:
 
 upload:
   dir: "./uploads"              # 文件上传存储目录
-  url_prefix: "http://127.0.0.1:8080/uploads"  # 静态文件访问 URL 前缀
+  url_prefix: "http://127.0.0.1:8094/uploads"  # 静态文件访问 URL 前缀
   max_img: 10    # 图片最大尺寸(MB)
   max_file: 500   # 文件最大尺寸(MB)
   max_voice: 5   # 语音最大尺寸(MB)
