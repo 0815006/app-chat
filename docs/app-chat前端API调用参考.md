@@ -130,12 +130,12 @@ const supabase = createClient(url, key, {
 ```ts
 // HTTP 基础地址
 private baseUrl(): string {
-  return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8080'
+  return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8194'
 }
 
 // WebSocket 地址
 private wsUrl(): string {
-  return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8080/ws'
+  return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8194/ws'
 }
 ```
 

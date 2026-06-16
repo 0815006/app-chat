@@ -28,7 +28,7 @@ class GoChatService implements IChatService {
     if (import.meta.env.DEV) {
       return ''  // 相对路径 → Vite 代理 → Go 后端
     }
-    return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8080'
+    return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8194'
   }
 
   /**
@@ -36,7 +36,7 @@ class GoChatService implements IChatService {
    * 开发/生产统一用绝对 URL（WebSocket 不走 Vite HTTP 代理，Go 后端 CORS 中间件放行）
    */
   private wsUrl(): string {
-    return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8080/ws'
+    return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8194/ws'
   }
 
   // ==================== 认证 ====================

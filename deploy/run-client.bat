@@ -11,7 +11,7 @@ echo.
 cd /d "%~dp0..\client-chat-tauri"
 
 :: ---------- 修正后端端口 ----------
-:: .env 文件里默认写的是 8080，但 Go 后端实际监听 8094
+:: .env 文件已配置为 8194，Go 后端也监听 8194；这里用环境变量二次兜底
 :: 这里用环境变量强行覆盖，Vite 会在 loadEnv 阶段拾取
 set VITE_GO_BASE_URL=http://127.0.0.1:8194
 set VITE_GO_WS_URL=ws://127.0.0.1:8194/ws

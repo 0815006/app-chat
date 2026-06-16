@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
         ? {
             protocol: 'ws',
             host,
-            port: 5175,
+            port: 8085,
           }
         : undefined,
       // 排除 Rust 编译输出目录，避免与 Cargo 文件锁冲突 (EBUSY)

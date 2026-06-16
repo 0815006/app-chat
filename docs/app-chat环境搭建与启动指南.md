@@ -98,8 +98,8 @@ Started supabase local development setup.
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=<启动日志中的 Publishable Key>
 VITE_BACKEND_TYPE=SUPABASE
-VITE_GO_BASE_URL=http://127.0.0.1:8080
-VITE_GO_WS_URL=ws://127.0.0.1:8080/ws
+VITE_GO_BASE_URL=http://127.0.0.1:8194
+VITE_GO_WS_URL=ws://127.0.0.1:8194/ws
 ```
 
 > **注意**：
@@ -171,7 +171,7 @@ cd client-chat-tauri
 npm run dev
 ```
 
-Vite 默认在 `http://localhost:5174` 启动，在**浏览器**中调试即可。所有聊天功能（注册、登录、消息收发）在浏览器中完全可调试。
+Vite 默认在 `http://localhost:8084` 启动，在**浏览器**中调试即可。所有聊天功能（注册、登录、消息收发）在浏览器中完全可调试。
 
 ### 4.2 Tauri 桌面端启动
 
@@ -280,7 +280,7 @@ WARNING: Analytics on Windows requires Docker daemon exposed on tcp://localhost:
 | 54321 | Kong API | `supabase/config.toml` → `api.port` |
 | 54322 | PostgreSQL | `supabase/config.toml` → `db.port` |
 | 54323 | Studio | `supabase/config.toml` → `studio.port` |
-| 5174 | Vite | `vite.config.ts` → `server.port` |
+| 8084 | Vite | `vite.config.ts` → `server.port` |
 
 ### 6.8 客户端始终显示"离线"
 
@@ -381,9 +381,9 @@ go run main.go
 
 ```
 MySQL 连接成功，AutoMigrate 完成
-🚀 go-chat-server 启动成功，监听地址: :8080
-   API 基路径: http://127.0.0.1:8080/api
-   WebSocket:  ws://127.0.0.1:8080/ws
+🚀 go-chat-server 启动成功，监听地址: :8194
+   API 基路径: http://127.0.0.1:8194/api
+   WebSocket:  ws://127.0.0.1:8194/ws
 ```
 
 > **提示**：不要关闭终端窗口，后端会一直运行。按 `Ctrl + C` 停止。
@@ -586,9 +586,9 @@ journalctl -u chat-server.service -f -n 50
 
 ```
 MySQL 连接成功，AutoMigrate 完成
-🚀 go-chat-server 启动成功，监听地址: :8080
-   API 基路径: http://127.0.0.1:8080/api
-   WebSocket:  ws://127.0.0.1:8080/ws
+🚀 go-chat-server 启动成功，监听地址: :8194
+   API 基路径: http://127.0.0.1:8194/api
+   WebSocket:  ws://127.0.0.1:8194/ws
 ```
 
 ### 9.7 常用 systemd 命令
@@ -627,8 +627,8 @@ VITE_BACKEND_TYPE=SUPABASE
 
 # 切换后（二期）
 VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=http://127.0.0.1:8080
-VITE_GO_WS_URL=ws://127.0.0.1:8080/ws
+VITE_GO_BASE_URL=http://127.0.0.1:8194
+VITE_GO_WS_URL=ws://127.0.0.1:8194/ws
 ```
 
 修改后**必须重启 Vite 开发服务器**，否则环境变量不生效。
@@ -639,8 +639,8 @@ VITE_GO_WS_URL=ws://127.0.0.1:8080/ws
 
 ```env
 VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=http://<服务器IP>:8080
-VITE_GO_WS_URL=ws://<服务器IP>:8080/ws
+VITE_GO_BASE_URL=https://realapex.site:8094
+VITE_GO_WS_URL=wss://realapex.site:8094/ws
 ```
 
 然后重新打包：

@@ -114,19 +114,19 @@ echo '   WSS:        wss://${DOMAIN}:${NGINX_PORT}/ws'
 ssh "${SERVER_USER}@${SERVER_IP}" $remoteScript
 
 # ─── 5. 快速健康检查 ──────────────────────────────────────────────
-Write-Host "`n$Stage [4/6] 快速健康检查（HTTPS）..." -ForegroundColor Yellow
+Write-Host "`n$Stage [4/6] 快速健康检查..." -ForegroundColor Yellow
 Start-Sleep -Seconds 1
 
-# 5.1 先检查内部 HTTP（Go 直连，快速确认二进制是否启动）
-$internalUrl = "http://${SERVER_IP}:${INTERNAL_PORT}/api/ping"
-try {
-    $response = Invoke-WebRequest -Uri $internalUrl -TimeoutSec 5 -UseBasicParsing -SkipCertificateCheck
-    Write-Host "[Success] Go 内部 HTTP 存活: $internalUrl → $($response.StatusCode)" -ForegroundColor Green
-} catch {
-    Write-Host "⚠️  Go 内部 HTTP 检查未通过，服务可能仍在启动中。" -ForegroundColor Yellow
+# 5.1 先 SSH 进服务器内部 curl Go 本地端口（Go 只绑 127.0.0.1，公网 IP 打不进来）
+Write-Host "  5.1 SSH 内自检 Go 内部 HTTP (curl 127.0.0.1:${INTERNAL_PORT})..." -ForegroundColor DarkGray
+$internalCheck = ssh "${SERVER_USER}@${SERVER_IP}" "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${INTERNAL_PORT}/api/ping"
+if ($LASTEXITCODE -eq 0 -and $internalCheck -eq '200') {
+    Write-Host "[Success] Go 内部 HTTP 存活: 127.0.0.1:${INTERNAL_PORT} → 200" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  Go 内部 HTTP 检查未通过 (code=$internalCheck)，服务可能仍在启动中。" -ForegroundColor Yellow
 }
 
-# 5.2 再检查 Nginx HTTPS 反代
+# 5.2 再检查 Nginx HTTPS 反代（从本机直连公网入口，验证整条链路）
 $nginxUrl = "https://${SERVER_IP}:${NGINX_PORT}/api/ping"
 try {
     $response = Invoke-WebRequest -Uri $nginxUrl -TimeoutSec 5 -UseBasicParsing -SkipCertificateCheck
