@@ -11,6 +11,9 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { toast } from '../../utils/toast'
 import { invoke } from '@tauri-apps/api/core'
 
+/** 运行时检测：是否运行在 Tauri 原生环境中（Web 版本无 __TAURI_INTERNALS__） */
+const isTauri = !!(window as any).__TAURI_INTERNALS__
+
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const containerRef = ref<HTMLDivElement>()
@@ -105,8 +108,10 @@ function buildLocalFileName(msg: Message): string {
 /**
  * 异步查询文件系统，判断某条文件消息是否已下载
  * 将结果写入 fileDownloadStates 缓存，触发响应式更新
+ * 仅在 Tauri 环境执行；Web 版本无文件系统访问能力
  */
 async function refreshFileDownloadState(msg: Message) {
+  if (!isTauri) return
   const msgId = msg.id
   // 下载中不允许覆盖
   if (fileDownloadStates[msgId] === 'downloading') return
@@ -125,10 +130,12 @@ async function refreshFileDownloadState(msg: Message) {
 
 /**
  * 监听消息列表变化，自动检测文件类型消息是否已在本地存在
+ * 仅在 Tauri 环境执行
  */
 watch(
   () => chatStore.messages,
   (msgs) => {
+    if (!isTauri) return
     for (const m of msgs) {
       if (m.msg_type === 'file' && !(m.id in fileDownloadStates)) {
         refreshFileDownloadState(m as Message)
@@ -156,12 +163,25 @@ function formatFileSize(bytes: number | undefined): string {
 }
 
 /**
- * 使用 Tauri 原生文件 API 将远程文件下载到本地 ChatDownloads 目录
- * 文件名 = 原始文件名_消息ID前8位.ext（跨会话唯一可推导）
+ * 下载文件到本地。
+ * Tauri 环境：写入本地 ChatDownloads 目录；
+ * Web 环境：通过浏览器 <a download> 触发下载。
  */
 async function downloadFileToLocal(msg: Message) {
   const msgId = msg.id
   const url = msg.content
+  
+  // Web 环境：直接触发浏览器下载
+  if (!isTauri) {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = msg.file_name ?? buildLocalFileName(msg)
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    return
+  }
   
   if (getFileDownloadState(msgId) !== 'undownloaded') return
   
@@ -191,11 +211,19 @@ async function downloadFileToLocal(msg: Message) {
 }
 
 /**
- * 使用系统默认程序打开本地已下载的文件
- * 打开前校验文件存在性，文件被删则重置为未下载
+ * 打开本地已下载的文件。
+ * Tauri 环境：通过系统默认程序打开；
+ * Web 环境：在新标签页中打开远程 URL。
  */
 async function openLocalFile(msg: Message) {
   const msgId = msg.id
+  
+  // Web 环境：直接在新标签页打开远程文件
+  if (!isTauri) {
+    window.open(msg.content, '_blank')
+    return
+  }
+  
   if (getFileDownloadState(msgId) !== 'downloaded') return
   
   try {
@@ -315,6 +343,10 @@ async function handleContextMenuAction(action: string) {
       await openLocalFile(msg)
       break
     case 'show_in_folder': {
+      if (!isTauri) {
+        toast.info('Web 版本不支持此操作')
+        break
+      }
       try {
         const filePath = await getLocalFilePath(msg)
         await invoke('show_in_folder', { path: filePath })

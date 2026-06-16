@@ -42,6 +42,10 @@ node_modules
 /go-chat-server/vendor/
 /go-chat-server/uploads/
 
+# Go embed：前端构建产物不入库（构建脚本自动生成）
+/go-chat-server/frontend/dist/*
+!/go-chat-server/frontend/dist/.gitkeep
+
 # Supabase / Docker
 supabase/
 

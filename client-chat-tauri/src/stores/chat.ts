@@ -7,6 +7,9 @@ import { toast } from '../utils/toast'
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { invoke } from '@tauri-apps/api/core'
 
+/** 运行时检测：是否运行在 Tauri 原生环境中 */
+const isTauri = !!(window as any).__TAURI_INTERNALS__
+
 /** 每次分页拉取的消息条数 */
 const PAGE_SIZE = 20
 
@@ -627,55 +630,74 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 触发任务栏图标闪烁（窗口最小化或后台时）
+   * 仅 Tauri 环境有效
    */
   async function flashTaskbar() {
+    if (!isTauri) return
     try {
       await invoke('flash_window')
     } catch {
-      // 在非 Tauri 环境（浏览器开发）会报错，静默忽略
+      // 静默忽略
     }
   }
 
   /**
    * 发送系统原生通知 + 任务栏闪烁（窗口未聚焦时）
-   * 仅当通知权限已授予时发送；权限未授予时静默跳过
+   * Tauri 环境：调用 @tauri-apps/plugin-notification
+   * Web 环境：使用浏览器 Notification API
    */
   async function sendSystemNotification(msg: Message) {
-    // 闪烁任务栏
+    // 闪烁任务栏（Tauri only）
     await flashTaskbar()
 
-    try {
-      let permitted = await isPermissionGranted()
-      if (!permitted) {
-        const result = await requestPermission()
-        permitted = result === 'granted'
+    // 仅对方发来的消息才通知，自己发的跳过
+    const authStore = useAuthStore()
+    if (!authStore.currentUser || msg.sender_id === authStore.currentUser.id) return
+
+    // 构建通知标题：群消息显示"群名 — 发送者"，单聊显示好友名
+    let title = '新消息'
+    if (msg.group_id) {
+      const group = groups.value.find(g => g.id === msg.group_id)
+      const friend = friends.value.find(f => f.friend_id === msg.sender_id)
+      const senderName = friend?.name ?? '群成员'
+      title = group ? `${group.name} — ${senderName}` : `群聊 — ${senderName}`
+    } else {
+      const friend = friends.value.find(f => f.friend_id === msg.sender_id)
+      title = friend?.name ?? '新消息'
+    }
+
+    const body = msg.msg_type === 'text'
+      ? (msg.content.length > 60 ? msg.content.slice(0, 60) + '…' : msg.content)
+      : `[${msg.msg_type === 'image' ? '图片' : msg.msg_type === 'voice' ? '语音' : '文件'}]`
+
+    if (isTauri) {
+      // Tauri 原生通知
+      try {
+        let permitted = await isPermissionGranted()
+        if (!permitted) {
+          const result = await requestPermission()
+          permitted = result === 'granted'
+        }
+        if (!permitted) return
+
+        sendNotification({ title, body })
+      } catch {
+        // 静默忽略
       }
-      if (!permitted) return
-
-      // 仅对方发来的消息才通知，自己发的跳过
-      const authStore = useAuthStore()
-      if (!authStore.currentUser || msg.sender_id === authStore.currentUser.id) return
-
-      // 构建通知标题：群消息显示"群名 — 发送者"，单聊显示好友名
-      let title = '新消息'
-      if (msg.group_id) {
-        const group = groups.value.find(g => g.id === msg.group_id)
-        const friend = friends.value.find(f => f.friend_id === msg.sender_id)
-        const senderName = friend?.name ?? '群成员'
-        title = group ? `${group.name} — ${senderName}` : `群聊 — ${senderName}`
-      } else {
-        const friend = friends.value.find(f => f.friend_id === msg.sender_id)
-        title = friend?.name ?? '新消息'
+    } else if (typeof window !== 'undefined' && 'Notification' in window) {
+      // 浏览器 Notification API 降级
+      try {
+        if (Notification.permission === 'granted') {
+          new Notification(title, { body, icon: '/favicon.svg' })
+        } else if (Notification.permission !== 'denied') {
+          const result = await Notification.requestPermission()
+          if (result === 'granted') {
+            new Notification(title, { body, icon: '/favicon.svg' })
+          }
+        }
+      } catch {
+        // 静默忽略
       }
-
-      sendNotification({
-        title,
-        body: msg.msg_type === 'text'
-          ? (msg.content.length > 60 ? msg.content.slice(0, 60) + '…' : msg.content)
-          : `[${msg.msg_type === 'image' ? '图片' : msg.msg_type === 'voice' ? '语音' : '文件'}]`,
-      })
-    } catch {
-      // Tauri notification API 在非 Tauri 环境（浏览器开发）会报错，静默忽略
     }
   }
 
