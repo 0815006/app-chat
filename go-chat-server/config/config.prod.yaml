@@ -30,7 +30,7 @@ jwt:
 
 upload:
   dir: "/root/chat-server/uploads"                                     # 文件上传存储目录（绝对路径）
-  url_prefix: "https://你的域名:8094/uploads"                           # ← 替换为实际域名（HTTPS + Nginx 端口）
+  url_prefix: "https://realapex.site:8094/uploads"                     # 文件公开访问 URL 前缀
   max_img: 10    # 图片最大尺寸(MB)
   max_file: 500  # 文件最大尺寸(MB)
   max_voice: 5   # 语音最大尺寸(MB)

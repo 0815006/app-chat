@@ -1,4 +1,4 @@
-# =================================================================
+﻿# =================================================================
 #        🚀 go-chat-server — 腾讯云一键全自动生产部署脚本
 #        参照 deploy/nginx-aicode.conf 模式，HTTPS + Nginx 反代
 # =================================================================
@@ -6,8 +6,8 @@ $Stage = "【腾讯云 Go 后端部署】"
 Write-Host "$Stage 开始执行..." -ForegroundColor Cyan
 
 # ─── 1. 配置你的腾讯云服务器参数（按需修改） ───────────────────────
-$SERVER_IP   = "你的腾讯云公网IP"                  # ← 替换为实际 IP
-$DOMAIN      = "你的域名"                          # ← 替换为实际域名
+$SERVER_IP   = "129.211.9.238"                    # 腾讯云公网 IP
+$DOMAIN      = "realapex.site"                    # 已备案域名
 $SERVER_USER = "root"
 $REMOTE_DIR  = "/root/chat-server"                 # 服务端工作目录
 $LOCAL_EXE   = "go-chat-server"                    # Linux 二进制文件名（无 .exe）
@@ -26,6 +26,7 @@ Push-Location "$PSScriptRoot\..\go-chat-server"
 $env:GOOS = "linux"
 $env:GOARCH = "amd64"
 $env:CGO_ENABLED = "0"                            # 纯静态编译，无 glibc 依赖
+$env:GOPROXY = "https://goproxy.cn,https://proxy.golang.org,direct"  # 国内代理，防墙
 
 $buildCmd = "go build -ldflags `"-s -w`" -o $LOCAL_EXE main.go"
 Write-Host "  执行: $buildCmd" -ForegroundColor DarkGray
@@ -45,8 +46,15 @@ Pop-Location
 # ─── 3. 自动化上传到腾讯云服务器 ─────────────────────────────────
 Write-Host "`n$Stage [2/6] 正在通过 SCP 上传文件到腾讯云..." -ForegroundColor Yellow
 
-# 3.1 创建远程工作目录
-ssh "${SERVER_USER}@${SERVER_IP}" "mkdir -p ${REMOTE_DIR}/config ${REMOTE_DIR}/uploads"
+# 3.0 先停服释放旧二进制文件（防止 SCP overwrite 被锁）
+Write-Host "  停服释放旧文件: systemctl stop + rm" -ForegroundColor DarkGray
+ssh "${SERVER_USER}@${SERVER_IP}" "systemctl stop chat-server 2>/dev/null; sleep 1; rm -f ${REMOTE_DIR}/${LOCAL_EXE}; mkdir -p ${REMOTE_DIR}/config ${REMOTE_DIR}/uploads"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ SSH 连接失败！请检查免密登录配置或服务器 IP。" -ForegroundColor Red
+    Exit 1
+}
+
+# 3.1 创建远程工作目录（已并入上一步）
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ SSH 连接失败！请检查免密登录配置或服务器 IP。" -ForegroundColor Red
     Exit 1
@@ -90,7 +98,8 @@ Write-Host "[Success] 全部文件已推送到远程目录: $REMOTE_DIR" -Foregr
 Write-Host "`n$Stage [3/6] 正在远程连接腾讯云，执行服务注册与重启..." -ForegroundColor Yellow
 
 # 通过 SSH 发送复合命令：赋权 → 刷新 daemon → 重启服务 → 重载 Nginx → 打印状态
-$remoteScript = @"
+# 注意：heredoc 在 Windows 上生成 CRLF，必须转为 LF 否则 Linux 上命令全部带 \r 失败
+$remoteScript = (@"
 echo '⚡ 正在赋权二进制文件...'
 chmod +x ${REMOTE_DIR}/${LOCAL_EXE}
 echo '⚡ 重载 systemd 守护进程...'
@@ -109,7 +118,7 @@ echo ''
 echo '🔍 Nginx 重载结果：'
 echo '   HTTPS API:  https://${DOMAIN}:${NGINX_PORT}/api'
 echo '   WSS:        wss://${DOMAIN}:${NGINX_PORT}/ws'
-"@
+"@) -replace "`r`n", "`n"
 
 ssh "${SERVER_USER}@${SERVER_IP}" $remoteScript
 
@@ -119,7 +128,7 @@ Start-Sleep -Seconds 1
 
 # 5.1 先 SSH 进服务器内部 curl Go 本地端口（Go 只绑 127.0.0.1，公网 IP 打不进来）
 Write-Host "  5.1 SSH 内自检 Go 内部 HTTP (curl 127.0.0.1:${INTERNAL_PORT})..." -ForegroundColor DarkGray
-$internalCheck = ssh "${SERVER_USER}@${SERVER_IP}" "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:${INTERNAL_PORT}/api/ping"
+$internalCheck = ssh -o ConnectTimeout=5 "${SERVER_USER}@${SERVER_IP}" "curl -s --connect-timeout 3 --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:${INTERNAL_PORT}/api/ping"
 if ($LASTEXITCODE -eq 0 -and $internalCheck -eq '200') {
     Write-Host "[Success] Go 内部 HTTP 存活: 127.0.0.1:${INTERNAL_PORT} → 200" -ForegroundColor Green
 } else {
@@ -127,9 +136,9 @@ if ($LASTEXITCODE -eq 0 -and $internalCheck -eq '200') {
 }
 
 # 5.2 再检查 Nginx HTTPS 反代（从本机直连公网入口，验证整条链路）
-$nginxUrl = "https://${SERVER_IP}:${NGINX_PORT}/api/ping"
+$nginxUrl = "https://${DOMAIN}:${NGINX_PORT}/api/ping"
 try {
-    $response = Invoke-WebRequest -Uri $nginxUrl -TimeoutSec 5 -UseBasicParsing -SkipCertificateCheck
+    $response = Invoke-WebRequest -Uri $nginxUrl -TimeoutSec 8 -UseBasicParsing -SkipCertificateCheck
     Write-Host "[Success] Nginx HTTPS 反代通过: $nginxUrl → $($response.StatusCode)" -ForegroundColor Green
 } catch {
     Write-Host "⚠️  HTTPS 检查未通过 ($nginxUrl)，请确认安全组已开放 ${NGINX_PORT} 端口。" -ForegroundColor Yellow

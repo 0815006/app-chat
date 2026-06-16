@@ -49,6 +49,6 @@ echo   ██████  前端开发服务器运行中（Ctrl+C 停止）
 echo ==================================================
 echo.
 
-call npm run dev
+call npm run tauri:dev
 
 pause
