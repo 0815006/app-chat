@@ -12,11 +12,11 @@ $SERVER_USER = "root"
 $REMOTE_DIR  = "/root/chat-server"                 # 服务端工作目录
 $LOCAL_EXE   = "go-chat-server"                    # Linux 二进制文件名（无 .exe）
 $SERVICE_NAME = "chat-server"                      # systemd 服务名
-$INTERNAL_PORT = 8095                              # Go 内部 HTTP 端口（仅 127.0.0.1）
+$INTERNAL_PORT = 8194                              # Go 内部 HTTP 端口（仅 127.0.0.1）
 $NGINX_PORT    = 8094                              # Nginx SSL 对外端口
 
 Write-Host "  目标: ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}" -ForegroundColor DarkGray
-Write-Host "  架构: HTTPS :${NGINX_PORT} (Nginx) → HTTP :${INTERNAL_PORT} (Go)" -ForegroundColor DarkGray
+Write-Host "  架构: HTTPS :${NGINX_PORT} (Nginx) → HTTP 127.0.0.1:${INTERNAL_PORT} (Go)" -ForegroundColor DarkGray
 
 # ─── 2. 本地交叉编译 → Linux amd64 二进制包 ───────────────────────
 Write-Host "`n$Stage [1/6] 正在本地交叉编译 Linux 生产环境专用二进制包..." -ForegroundColor Yellow

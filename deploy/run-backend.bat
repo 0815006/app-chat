@@ -3,7 +3,7 @@ chcp 65001 >nul
 cls
 
 echo ==================================================
-echo   🚀 IM 聊天后端 [端口: 8094] 正在接入本地常驻中间件...
+echo   🚀 IM 聊天后端 [端口: 8194] 正在接入本地常驻中间件...
 echo ==================================================
 echo.
 
@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
 echo 📋 当前配置一览：
 echo    MySQL  : 127.0.0.1:3306 / chat_db
 echo    Redis  : 127.0.0.1:6379 / db:0
-echo    服务端口: 8094
+echo    服务端口: 8194
 echo.
 echo 💡 提示：
 echo    1. 请确保本地 MySQL 已创建空库 chat_db（字符集 utf8mb4）
@@ -44,9 +44,9 @@ if %errorlevel% neq 0 (
 :: ---------- 启动 ----------
 echo.
 echo ✅ 编译成功！正在拉起 Go 后端...
-echo 📡 API 基址 : http://127.0.0.1:8094
-echo 📡 WebSocket: ws://127.0.0.1:8094/ws
-echo 📡 健康检查: http://127.0.0.1:8094/api/ping
+echo 📡 API 基址 : http://127.0.0.1:8194
+echo 📡 WebSocket: ws://127.0.0.1:8194/ws
+echo 📡 健康检查: http://127.0.0.1:8194/api/ping
 echo.
 echo ==================================================
 echo   ██████  后端运行中（前台模式，Ctrl+C 停止）

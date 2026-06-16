@@ -1,11 +1,11 @@
 # go-chat-server 腾讯云生产环境配置文件
 # 部署路径: /root/chat-server/config/config.yaml
 #
-# 架构: 外部 HTTPS :8094 (Nginx SSL) → 内部 HTTP :8095 (Go 二进制)
-# Go 只监听 127.0.0.1:8095，外部只能通过 Nginx 访问
+# 架构: 外部 HTTPS :8094 (Nginx SSL) → 内部 HTTP :8194 (Go 二进制)
+# Go 只监听 127.0.0.1:8194，外部只能通过 Nginx 访问
 
 server:
-  port: 8095                  # Go 内部 HTTP 端口（仅 127.0.0.1 监听，不对外）
+  port: 8194                  # Go 内部 HTTP 端口（仅 127.0.0.1 监听，不对外）
   mode: release               # 生产环境必须使用 release 模式
 
 database:
