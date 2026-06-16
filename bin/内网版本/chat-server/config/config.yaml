@@ -3,7 +3,7 @@
 # MySQL 位于内网另一台机器 22.188.9.144
 server:
   port: 8194
-  mode: debug  # debug | release | test
+  mode: release  # debug | release | test
 
 database:
   host: 22.188.9.144
