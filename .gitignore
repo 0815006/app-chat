@@ -50,6 +50,5 @@ node_modules
 supabase/
 
 # Environment
-.env
 .env.local
 .env.*.local

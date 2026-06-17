@@ -22,8 +22,8 @@
 
 | 模式 | 场景 | 核心入口 | 中间件策略 |
 |------|------|---------|-----------|
-| **A：本地快速验证** | Windows 拖动 exe 直跑 | [`deploy/run-backend.bat`](../deploy/run-backend.bat) + [`deploy/run-client.bat`](../deploy/run-client.bat) | 借本地已装 MySQL + Redis |
-| **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-to-tencent.ps1`](../deploy/deploy-to-tencent.ps1) | 云上 MySQL + Docker Redis |
+| **A：本地快速验证** | Windows 拖动 exe 直跑 | [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat) + [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat) | 借本地已装 MySQL + Redis |
+| **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) | 云上 MySQL + Docker Redis |
 | **C：独立内网私有部署** | 零 root / 借壳信创 | 纯手工挪文件 + `nohup` 守护 | 内网现成 MySQL，Redis 关闭 |
 
 ---
@@ -46,7 +46,7 @@ CREATE DATABASE IF NOT EXISTS chat_db
 
 ### 3.2 启动后端（双击）
 
-1. 双击 [`deploy/run-backend.bat`](../deploy/run-backend.bat)
+1. 双击 [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat)
 2. 脚本自动：
    - 在 [`go-chat-server/`](../go-chat-server/) 下 `go build` 编译 `server.exe`
    - 前台启动，死守 **8194** 端口
@@ -64,7 +64,7 @@ MySQL 连接成功，AutoMigrate 完成
 
 ### 3.3 启动前端（双击）
 
-1. 双击 [`deploy/run-client.bat`](../deploy/run-client.bat)
+1. 双击 [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat)
 2. 脚本自动：
    - 检查 `node_modules`，首次自动 `npm install`
    - 设置环境变量 `VITE_GO_BASE_URL=http://127.0.0.1:8194`
@@ -144,7 +144,7 @@ upload:
   max_voice: 5
 ```
 
-**B.** [`deploy/deploy-to-tencent.ps1`](../deploy/deploy-to-tencent.ps1) 第 9-10 行 — 填入实际 IP 和域名：
+**B.** [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) 第 9-10 行 — 填入实际 IP 和域名：
 
 ```powershell
 $SERVER_IP = "129.211.9.238"
@@ -153,7 +153,7 @@ $DOMAIN    = "realapex.site"
 
 ### 4.3 一键部署
 
-右键 → **使用 PowerShell 运行** [`deploy/deploy-to-tencent.ps1`](../deploy/deploy-to-tencent.ps1)
+右键 → **使用 PowerShell 运行** [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1)
 
 全自动 6 步流水线：
 
@@ -198,7 +198,7 @@ $DOMAIN    = "realapex.site"
 
 ### 4.5 更新部署
 
-代码更新后，重新执行 `deploy-to-tencent.ps1` 即可。脚本会自动：
+代码更新后，重新执行 `deploy-server-tencent.ps1` 即可。脚本会自动：
 - 重新交叉编译
 - SCP 覆盖二进制
 - `systemctl restart` 重启服务
@@ -415,10 +415,12 @@ netstat -ano | findstr "8094 8194 8084"
 ```
 app-chat/
 ├── deploy/
-│   ├── run-backend.bat            # 模式 A：本地后端一键启动
-│   ├── run-client.bat             # 模式 A：本地前端一键启动 (tauri:dev)
-│   ├── build-client.bat           # 模式 B：打包 Tauri 桌面客户端 (.exe/.msi)
-│   ├── deploy-to-tencent.ps1      # 模式 B：腾讯云 Go 后端全自动部署
+│   ├── run-backend-dev.bat        # 模式 A：本地后端一键启动
+│   ├── run-client-dev.bat         # 模式 A：本地前端一键启动 (tauri:dev)
+│   ├── build-client-lan.bat       # 模式 B：打包内网 Tauri 桌面客户端 (.exe/.msi)
+│   ├── build-client-tencent.bat   # 模式 B：打包腾讯云 Tauri 桌面客户端 (.exe/.msi)
+│   ├── build-server-lan.bat       # 模式 C：构建内网 Server all-in-one (Go + Vue)
+│   ├── deploy-server-tencent.ps1  # 模式 B：腾讯云 Go 后端全自动部署
 │   ├── nginx-chat.conf            # 模式 B/C：Nginx HTTPS 反代配置
 │   └── chat-server.service        # 模式 B：Linux systemd 服务定义
 ├── go-chat-server/

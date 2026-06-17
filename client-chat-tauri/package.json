@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "build:lan-server": "vue-tsc -b && vite build --mode lan-server",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

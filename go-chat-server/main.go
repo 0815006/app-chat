@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 
@@ -25,6 +26,16 @@ func main() {
 		log.Fatalf("加载配置失败: %v", err)
 	}
 	log.Printf("配置加载成功，服务器端口: %d", cfg.Server.Port)
+
+	// 1.5 自动检测本机 IP 并替换 url_prefix（all-in-one 部署时无需硬编码 IP）
+	// 若已显式配置 https:// 前缀（如 Nginx 反代场景），则跳过自动检测
+	if !strings.HasPrefix(cfg.Upload.URLPrefix, "https://") {
+		hostIP := getOutboundIP()
+		cfg.Upload.URLPrefix = fmt.Sprintf("http://%s:%d/uploads", hostIP, cfg.Server.Port)
+		log.Printf("🌐 本机 IP 检测: %s, 文件访问前缀: %s", hostIP, cfg.Upload.URLPrefix)
+	} else {
+		log.Printf("🌐 使用配置文件指定的 url_prefix: %s", cfg.Upload.URLPrefix)
+	}
 
 	// 2. 注入 JWT 配置到中间件包
 	middleware.SetJWTConfig(&middleware.JWTConfig{
@@ -64,6 +75,21 @@ func main() {
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("服务启动失败: %v", err)
 	}
+}
+
+// getOutboundIP 获取本机首选局域网 IPv4 地址。
+// 用于 all-in-one 部署时自动生成文件上传的公开访问 URL，无需在配置中硬编码 IP。
+func getOutboundIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			return ipnet.IP.String()
+		}
+	}
+	return "127.0.0.1"
 }
 
 // registerSPAFallback 为单页应用 (SPA) 注册 fallback 路由。

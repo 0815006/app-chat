@@ -21,22 +21,28 @@ class GoChatService implements IChatService {
 
   /**
    * HTTP 请求基路径。
-   * 开发模式：空字符串 → 走 Vite 代理（避免跨域 CORS 错误）
-   * 生产模式：直连 Go 后端绝对地址
+   * 开发模式 + all-in-one 同源部署 → 空字符串（相对路径，无需跨域）
+   * Tauri 桌面客户端（配置了 VITE_GO_BASE_URL）→ 绝对地址直连
    */
   private baseUrl(): string {
     if (import.meta.env.DEV) {
       return ''  // 相对路径 → Vite 代理 → Go 后端
     }
-    return import.meta.env.VITE_GO_BASE_URL || 'http://127.0.0.1:8194'
+    // 生产环境：如果配置了远程地址就用（Tauri 场景），否则空字符串走同源（all-in-one Web 场景）
+    return import.meta.env.VITE_GO_BASE_URL || ''
   }
 
   /**
    * WebSocket 连接地址。
-   * 开发/生产统一用绝对 URL（WebSocket 不走 Vite HTTP 代理，Go 后端 CORS 中间件放行）
+   * 优先使用显式配置（Tauri 桌面端跨域场景）；
+   * 配置为空时，从浏览器 window.location 自动推导（all-in-one 同源部署场景）。
    */
   private wsUrl(): string {
-    return import.meta.env.VITE_GO_WS_URL || 'ws://127.0.0.1:8194/ws'
+    const configured = import.meta.env.VITE_GO_WS_URL
+    if (configured) return configured
+    // 自动从浏览器地址栏推导（前后端同源 all-in-one 部署）
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}/ws`
   }
 
   // ==================== 认证 ====================
