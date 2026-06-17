@@ -68,9 +68,9 @@ if ($LASTEXITCODE -ne 0) {
     Exit 1
 }
 
-# 3.3 上传生产环境配置文件（覆盖为 config.yaml）
-Write-Host "  上传配置: config.prod.yaml → ${REMOTE_DIR}/config/config.yaml" -ForegroundColor DarkGray
-scp "$PSScriptRoot\..\go-chat-server\config\config.prod.yaml" "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/config/config.yaml"
+# 3.3 上传配置文件
+Write-Host "  上传配置: config.yaml → ${REMOTE_DIR}/config/config.yaml" -ForegroundColor DarkGray
+scp "$PSScriptRoot\..\go-chat-server\config\config.yaml" "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/config/config.yaml"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 配置文件上传失败！" -ForegroundColor Red
     Exit 1

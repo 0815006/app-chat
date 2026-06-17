@@ -1,6 +1,8 @@
-# go-chat-server 内网 Windows 部署配置（运行时自动检测本机 IP）
-# 架构: HTTP 直连 8194 端口（无 Nginx / 无 HTTPS，Go 直接对外服务）
-# MySQL 位于内网另一台机器 22.188.9.144
+# go-chat-server 配置文件
+# 语法：默认值
+#   - 本地 dev 启动：不设任何环境变量，全部使用默认值
+#   - 内网 LAN 部署：build-server-lan.bat 构建时 set 环境变量 → --expand-config 展开为写死值的 config.yaml
+#   - 腾讯云部署：systemd Environment= 注入环境变量覆盖默认值
 server:
   port: 8194
   mode: release  # debug | release | test
@@ -16,7 +18,7 @@ database:
   loc: Local
 
 redis:
-  enable: false          # 内网暂不启用 Redis
+  enable: false
   addr: 127.0.0.1:6379
   password: ""
   db: 0
@@ -27,7 +29,7 @@ jwt:
 
 upload:
   dir: "D:/data/chat-server/uploads"
-  url_prefix: "http://127.0.0.1:8194/uploads"   # 运行时自动替换为本机 IP（无需手动修改）
+  url_prefix: "http://127.0.0.1:8194/uploads"
   max_img: 10    # 图片最大尺寸(MB)
-  max_file: 500   # 文件最大尺寸(MB)
-  max_voice: 5   # 语音最大尺寸(MB)
+  max_file: 500  # 文件最大尺寸(MB)
+  max_voice: 5  # 语音最大尺寸(MB)

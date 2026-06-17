@@ -24,7 +24,7 @@
 |------|------|---------|-----------|
 | **A：本地快速验证** | Windows 拖动 exe 直跑 | [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat) + [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat) | 借本地已装 MySQL + Redis |
 | **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) | 云上 MySQL + Docker Redis |
-| **C：独立内网私有部署** | 零 root / 借壳信创 | 纯手工挪文件 + `nohup` 守护 | 内网现成 MySQL，Redis 关闭 |
+| **C：独立内网私有部署** | 内网 Windows 服务器 | `build-server-lan.bat` 一键构建 → WinSW 注册服务 | 内网现成 MySQL，Redis 关闭 |
 
 ---
 
@@ -101,7 +101,7 @@ curl -I http://localhost:8084
 |------|------|
 | 腾讯云 CVM | 已开通，安全组**只开放 8094 端口** |
 | 云上 MySQL | 已安装，创建 `chat_db` 库 |
-| 云上 Redis | 已安装（可选，`config.prod.yaml` 中可关闭） |
+| 云上 Redis | 已安装（可选，通过 systemd `Environment="REDIS_ENABLE=false"` 关闭） |
 | 云上 Nginx | 已安装，若未安装脚本自动 `apt install` |
 | 本地开发机 | Windows，`ssh` + `scp` 可用（免密登录），Go SDK |
 
@@ -109,40 +109,9 @@ curl -I http://localhost:8084
 
 部署前按实际环境修改：
 
-**A.** [`go-chat-server/config/config.prod.yaml`](../go-chat-server/config/config.prod.yaml) — 生产配置（此文件将覆盖为远程的 `config.yaml`）
+**A.** [`go-chat-server/config/config.yaml`](../go-chat-server/config/config.yaml) — 唯一配置文件，已内置 `${ENV:default}` 语法；生产环境变量由 systemd 的 [`chat-server.service`](../deploy/chat-server.service) 中 `Environment=` 注入
 
-```yaml
-server:
-  port: 8194           # Go 只绑 127.0.0.1
-  mode: release
-
-database:
-  host: 127.0.0.1      # 腾讯云本地 MySQL
-  port: 3306
-  user: root
-  password: "你的密码"
-  dbname: chat_db
-  charset: utf8mb4
-  parse_time: true
-  loc: Local
-
-redis:
-  enable: true         # 或 false，纯 MySQL 降级
-  addr: 127.0.0.1:6379
-  password: ""
-  db: 0
-
-jwt:
-  secret: "修改为随机强密码！"
-  expire_hours: 72
-
-upload:
-  dir: "/root/chat-server/uploads"
-  url_prefix: "https://你的域名:8094/uploads"
-  max_img: 10
-  max_file: 500
-  max_voice: 5
-```
+生产环境无需修改 config.yaml — 当前 YAML 中所有值均为 `${ENV:default}` 格式，环境差异通过 systemd 注入。部署前只需确认 [`deploy/chat-server.service`](../deploy/chat-server.service) 中 `Environment=` 的值与实际环境匹配（数据库地址、密码、域名等）。
 
 **B.** [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) 第 9-10 行 — 填入实际 IP 和域名：
 
@@ -228,46 +197,45 @@ systemctl stop chat-server
 
 ### 5.1 前置准备
 
-- 内网已有一台 Linux 服务器（普通用户可登录）
+- 内网已有一台 Windows 服务器（管理员权限，用于注册 WinSW 服务）
 - 内网 MySQL 已创建 `chat_db` 库
-- **Redis 关闭**：修改 [`go-chat-server/config/config.yaml`](../go-chat-server/config/config.yaml:17) 中 `redis.enable: false`，系统自动降级为纯 MySQL 模式（在线状态走内存 map，未读走 MySQL 实时查询）
+- **Redis 关闭**：编辑 [`build-server-lan.bat`](../deploy/build-server-lan.bat:11) 头部参数，设 `set "REDIS_ENABLE=false"`，构建时自动展开到 config.yaml；系统自动降级为纯 MySQL 模式（在线状态走内存 map，未读走 MySQL 实时查询）
 - 若内网有 Nginx 且你有权限修改其配置，可复用 Nginx 反代（监听 8094）；若无，客户端直连 Go 的 8194
 
-### 5.2 手工部署步骤
+### 5.2 构建 & 部署步骤
 
-**步骤 1** — 在本地开发机编译 Linux 二进制：
+> **核心理念**：所有内网参数集中管理在 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat) 头部 `set` 变量中，构建时自动展开到 config.yaml。改内网部署参数，只改这一个 bat。
 
-```powershell
-# Windows PowerShell
-cd go-chat-server
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
-go build -ldflags "-s -w" -o go-chat-server main.go
+**步骤 1** — 编辑构建参数：
+
+打开 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat)，修改头部参数为你的内网环境：
+
+```bat
+:: ========== 📌 内网部署参数（改内网只改这里） ==========
+set "CHAT_SERVER_MODE=release"
+set "DB_HOST=22.188.9.144"          ← 改为你的内网 MySQL IP
+set "DB_PORT=3306"
+set "DB_USER=root"
+set "DB_PASSWORD=Star002!"          ← 改为你的数据库密码
+set "DB_NAME=chat_db"
+set "REDIS_ENABLE=false"            ← 内网无 Redis 则 false
+set "JWT_SECRET=go-chat-server-prod-jwt-secret-change-me"
+set "UPLOAD_DIR=D:/data/chat-server/uploads"
+:: ========================================================
 ```
 
-**步骤 2** — 用 U 盘 / scp / FTP 拷贝到内网服务器：
+**步骤 2** — 双击运行 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat)：
 
-```
-文件清单：
-  go-chat-server        → /home/youruser/chat-server/go-chat-server
-  config/config.yaml    → /home/youruser/chat-server/config/config.yaml
-```
+- 自动编译 Vue 前端（LAN 模式）
+- 自动编译 Go 后端（内嵌前端，Windows amd64）
+- **构建时展开 config.yaml**：调用 `go-chat-server.exe --expand-config` 将 `${VAR:default}` 模板替换为步骤 1 设置的实际值，输出写死参数的无变量配置文件
+- 产物汇总到 `bin/内网版本/chat-server/` 目录
 
-修改 `config.yaml` 中数据库地址为内网 MySQL IP。
+**步骤 3** — 将 `bin/内网版本/chat-server/` 整个目录复制到内网 Windows 服务器（如 `D:\chat-server\`）。
 
-**步骤 3** — SSH 进内网服务器，赋权并启动：
+**步骤 4** — 以管理员身份运行 `D:\chat-server\startServer.bat`，注册并启动 WinSW 服务（开机自启）。
 
-```bash
-chmod +x /home/youruser/chat-server/go-chat-server
-cd /home/youruser/chat-server
-
-# nohup 后台守护
-nohup ./go-chat-server > /home/youruser/chat-server/server.log 2>&1 &
-
-# 验证
-curl http://127.0.0.1:8194/api/ping
-```
-
-**步骤 4 (可选)** — 配置内网 Nginx 反代。
+**步骤 5 (可选)** — 配置内网 Nginx 反代。
 
 联系管理员在内网 Nginx 中新增配置块（参照 [`deploy/nginx-chat.conf`](../deploy/nginx-chat.conf)），监听内网 `8094`：
 
@@ -426,8 +394,8 @@ app-chat/
 ├── go-chat-server/
 │   ├── main.go                    # Go 入口
 │   ├── config/
-│   │   ├── config.yaml            # 本地开发配置
-│   │   └── config.prod.yaml       # 生产配置（部署时覆盖 config.yaml）
+│   │   ├── config.yaml            # 唯一配置文件（${ENV:default} 语法，本地 dev 走默认值）
+│   │   └── config.go              # 配置加载 + 环境变量展开器
 │   ├── model/                     # GORM 数据模型 (AutoMigrate)
 │   ├── service/                   # 业务逻辑层
 │   ├── api/                       # HTTP 控制器
@@ -459,6 +427,6 @@ app-chat/
 > 1. **端口铁律**：对外 8094 (Nginx)，对内 8194 (Go)，开发 8084 (Vite)
 > 2. **GORM AutoMigrate** 是唯一的建表机制，禁止手动执行 DDL
 > 3. **Redis 可关**：`redis.enable: false` 后自动降级，不崩不 panic
-> 4. **JWT 密钥**：生产部署前务必修改 [`config.prod.yaml`](../go-chat-server/config/config.prod.yaml) 中的 `jwt.secret`
+> 4. **JWT 密钥**：生产部署前务必修改 [`chat-server.service`](../deploy/chat-server.service) 中 `Environment="JWT_SECRET=..."` 的值
 > 5. **SSL 证书**：模式 B 需要云上 Nginx 配置 SSL 证书，路径见 [`nginx-chat.conf`](../deploy/nginx-chat.conf)
 > 6. **文件存储**：生产环境 `upload.dir` 设为绝对路径，与 Nginx `/uploads/` 代理对齐

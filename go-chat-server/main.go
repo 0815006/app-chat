@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"go-chat-server/config"
@@ -20,6 +21,12 @@ import (
 var frontendFS embed.FS
 
 func main() {
+	// --expand-config <output_path>：构建时展开 config.yaml 中的 ${VAR:default}
+	// 示例：go-chat-server.exe --expand-config bin/config/config.yaml
+	if len(os.Args) >= 3 && os.Args[1] == "--expand-config" {
+		expandConfigAndExit(os.Args[2])
+	}
+
 	// 1. 加载配置
 	cfg, err := config.Load()
 	if err != nil {
@@ -75,6 +82,16 @@ func main() {
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatalf("服务启动失败: %v", err)
 	}
+}
+
+// expandConfigAndExit 读取 config.yaml，展开 ${VAR:default}，写入目标路径后退出。
+func expandConfigAndExit(dstPath string) {
+	n, err := config.ExpandConfigFile(dstPath)
+	if err != nil {
+		log.Fatalf("展开配置失败: %v", err)
+	}
+	log.Printf("配置已展开并写入 %s (%d bytes)", dstPath, n)
+	os.Exit(0)
 }
 
 // getOutboundIP 获取本机首选局域网 IPv4 地址。

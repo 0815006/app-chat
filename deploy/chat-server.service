@@ -12,6 +12,16 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=chat-server
 
+# 生产环境变量（覆盖 config.yaml 默认值）
+Environment="CHAT_SERVER_MODE=release"
+Environment="DB_HOST=127.0.0.1"
+Environment="DB_USER=root"
+Environment="DB_PASSWORD=root"
+Environment="REDIS_ENABLE=true"
+Environment="JWT_SECRET=go-chat-server-prod-jwt-secret-change-me"
+Environment="UPLOAD_DIR=/root/chat-server/uploads"
+Environment="UPLOAD_URL_PREFIX=https://realapex.site:8094/uploads"
+
 # 安全加固（可选）
 NoNewPrivileges=true
 PrivateTmp=true
