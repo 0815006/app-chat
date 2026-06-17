@@ -138,7 +138,7 @@ func FindConfigPath() (string, error) {
 }
 
 // ExpandConfigFile 读取 config.yaml → 展开 ${VAR:default} → 写入 dstPath。
-// 用于构建时（如 build-server-lan.bat）将变量模板展开为写死值的配置文件。
+// 用于构建时（如 build-server-lan.ps1）将变量模板展开为写死值的配置文件。
 // 返回展开后的字节数。
 func ExpandConfigFile(dstPath string) (int, error) {
 	srcPath, err := FindConfigPath()

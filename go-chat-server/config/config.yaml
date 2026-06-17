@@ -1,7 +1,7 @@
 # go-chat-server 配置文件
 # 语法：${环境变量名:默认值}
 #   - 本地 dev 启动：不设任何环境变量，全部使用默认值
-#   - 内网 LAN 部署：build-server-lan.bat 构建时 set 环境变量 → --expand-config 展开为写死值的 config.yaml
+#   - 内网 LAN 部署：build-server-lan.ps1 构建时 set 环境变量 → --expand-config 展开为写死值的 config.yaml
 #   - 腾讯云部署：systemd Environment= 注入环境变量覆盖默认值
 server:
   port: ${CHAT_SERVER_PORT:8094}

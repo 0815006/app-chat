@@ -24,7 +24,7 @@
 |------|------|---------|-----------|
 | **A：本地快速验证** | Windows 拖动 exe 直跑 | [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat) + [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat) | 借本地已装 MySQL + Redis |
 | **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) | 云上 MySQL + Docker Redis |
-| **C：独立内网私有部署** | 内网 Windows 服务器 | `build-server-lan.bat` 一键构建 → WinSW 注册服务 | 内网现成 MySQL，Redis 关闭 |
+| **C：独立内网私有部署** | 内网 Windows 服务器 | `build-server-lan.ps1` 一键构建 → WinSW 注册服务 | 内网现成 MySQL，Redis 关闭 |
 
 ---
 
@@ -199,32 +199,32 @@ systemctl stop chat-server
 
 - 内网已有一台 Windows 服务器（管理员权限，用于注册 WinSW 服务）
 - 内网 MySQL 已创建 `chat_db` 库
-- **Redis 关闭**：编辑 [`build-server-lan.bat`](../deploy/build-server-lan.bat:11) 头部参数，设 `set "REDIS_ENABLE=false"`，构建时自动展开到 config.yaml；系统自动降级为纯 MySQL 模式（在线状态走内存 map，未读走 MySQL 实时查询）
+- **Redis 关闭**：编辑 [`build-server-lan.ps1`](../deploy/build-server-lan.ps1:20) 头部参数，设 `$REDIS_ENABLE = "false"`，构建时自动展开到 config.yaml；系统自动降级为纯 MySQL 模式（在线状态走内存 map，未读走 MySQL 实时查询）
 - 若内网有 Nginx 且你有权限修改其配置，可复用 Nginx 反代（监听 8084）；若无，客户端直连 Go 的 8094
 
 ### 5.2 构建 & 部署步骤
 
-> **核心理念**：所有内网参数集中管理在 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat) 头部 `set` 变量中，构建时自动展开到 config.yaml。改内网部署参数，只改这一个 bat。
+> **核心理念**：所有内网参数集中管理在 [`deploy/build-server-lan.ps1`](../deploy/build-server-lan.ps1) 头部 `$` 变量中，构建时自动展开到 config.yaml。改内网部署参数，只改这一个 ps1。
 
 **步骤 1** — 编辑构建参数：
 
-打开 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat)，修改头部参数为你的内网环境：
+打开 [`deploy/build-server-lan.ps1`](../deploy/build-server-lan.ps1)，修改头部参数为你的内网环境：
 
-```bat
-:: ========== 📌 内网部署参数（改内网只改这里） ==========
-set "CHAT_SERVER_MODE=release"
-set "DB_HOST=22.188.9.144"          ← 改为你的内网 MySQL IP
-set "DB_PORT=3306"
-set "DB_USER=root"
-set "DB_PASSWORD=Star002!"          ← 改为你的数据库密码
-set "DB_NAME=chat_db"
-set "REDIS_ENABLE=false"            ← 内网无 Redis 则 false
-set "JWT_SECRET=go-chat-server-prod-jwt-secret-change-me"
-set "UPLOAD_DIR=D:/data/chat-server/uploads"
-:: ========================================================
+```powershell
+# ─── 📌 内网部署参数（改内网只改这里）───────────────────────────
+$CHAT_SERVER_MODE = "release"
+$DB_HOST     = "22.188.9.144"       # ← 改为你的内网 MySQL IP
+$DB_PORT     = "3306"
+$DB_USER     = "root"
+$DB_PASSWORD = "Star002!"           # ← 改为你的数据库密码
+$DB_NAME     = "chat_db"
+$REDIS_ENABLE = "false"             # ← 内网无 Redis 则 false
+$JWT_SECRET  = "go-chat-server-prod-jwt-secret-change-me"
+$UPLOAD_DIR  = "D:/data/chat-server/uploads"
+# ───────────────────────────────────────────────────────────────
 ```
 
-**步骤 2** — 双击运行 [`deploy/build-server-lan.bat`](../deploy/build-server-lan.bat)：
+**步骤 2** — 右键使用 PowerShell 运行 [`deploy/build-server-lan.ps1`](../deploy/build-server-lan.ps1)：
 
 - 自动编译 Vue 前端（LAN 模式）
 - 自动编译 Go 后端（内嵌前端，Windows amd64）
@@ -387,7 +387,7 @@ app-chat/
 │   ├── run-client-dev.bat         # 模式 A：本地前端一键启动 (tauri:dev)
 │   ├── build-client-lan.bat       # 模式 B：打包内网 Tauri 桌面客户端 (.exe/.msi)
 │   ├── build-client-tencent.bat   # 模式 B：打包腾讯云 Tauri 桌面客户端 (.exe/.msi)
-│   ├── build-server-lan.bat       # 模式 C：构建内网 Server all-in-one (Go + Vue)
+│   ├── build-server-lan.ps1       # 模式 C：构建内网 Server all-in-one (Go + Vue)
 │   ├── deploy-server-tencent.ps1  # 模式 B：腾讯云 Go 后端全自动部署
 │   ├── nginx-chat.conf            # 模式 B/C：Nginx HTTPS 反代配置
 │   └── chat-server.service        # 模式 B：Linux systemd 服务定义
