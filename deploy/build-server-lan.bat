@@ -171,11 +171,11 @@ echo.
 echo   📌 部署方式:
 echo       1. 将整个 chat-server 目录复制到内网服务器
 echo       2. 以管理员运行 startServer.bat 注册并启动服务
-echo       3. 浏览器访问 http://服务器IP:8194
+echo       3. 浏览器访问 http://服务器IP:8094
 echo.
 echo   💡 修改内网参数：编辑本 bat 头部 set 变量，重新构建即可
 echo      go-chat-server.exe 同时提供：
-echo      - Go API 后端 (HTTP + WebSocket，端口 8194)
+echo      - Go API 后端 (HTTP + WebSocket，端口 8094)
 echo      - Vue 前端 SPA (内嵌，/ 路径)
 echo ==================================================
 echo.

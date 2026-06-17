@@ -132,14 +132,14 @@ echo   🏁  Web 前端部署完成！
 echo ==================================================
 echo.
 echo   📌 访问地址:
-echo      https://%DOMAIN%:8094/
+echo      https://%DOMAIN%:8084/
 echo.
 echo   📌 部署架构:
-echo      浏览器 → HTTPS :8094 (Nginx)
+echo      浏览器 → HTTPS :8084 (Nginx)
 echo        ├── /               → 静态文件 /var/www/app-chat/dist/
-echo        ├── /api/*          → 反代 Go :8194
-echo        ├── /ws             → WebSocket Go :8194
-echo        └── /uploads/*      → 反代 Go :8194
+echo        ├── /api/*          → 反代 Go :8094
+echo        ├── /ws             → WebSocket Go :8094
+echo        └── /uploads/*      → 反代 Go :8094
 echo.
 echo   📌 后续更新前端:
 echo      仅需重新运行本脚本，无需重启 Go 后端或 Nginx

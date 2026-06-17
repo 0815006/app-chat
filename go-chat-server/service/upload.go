@@ -120,7 +120,7 @@ func (s *UploadService) saveFile(ctx context.Context, fileHeader *multipart.File
 	// 构造公开访问 URL
 	urlPrefix := cfg.Upload.URLPrefix
 	if urlPrefix == "" {
-		urlPrefix = "http://127.0.0.1:8194/uploads"
+		urlPrefix = "http://127.0.0.1:8094/uploads"
 	}
 	url := fmt.Sprintf("%s/%s", strings.TrimRight(urlPrefix, "/"), relativePath)
 

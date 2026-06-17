@@ -10,11 +10,11 @@
 
 | 端口 | 归属 | 说明 |
 |------|------|------|
-| **8194** | Go 后端真身 | 本地 & 生产统一，生产环境仅绑 `127.0.0.1`，由 Nginx 反代 |
-| **8094** | Nginx 公网大门 | HTTPS/WSS SSL 终结，反向代理到 `127.0.0.1:8194` |
-| **8084** | Vite 前端开发服务器 | 仅本地开发使用 |
+| **8094** | Go 后端真身 | 本地 & 生产统一，生产环境仅绑 `127.0.0.1`，由 Nginx 反代 |
+| **8084** | Nginx 公网大门 | HTTPS/WSS SSL 终结，反向代理到 `127.0.0.1:8094` |
+| **5174** | Vite 前端开发服务器 | 仅本地开发使用 |
 
-> **铁律**：对外只需开放 8094。Go 后端的 8194 躲在 Nginx 背后，安全组不暴露。
+> **铁律**：对外只需开放 8084。Go 后端的 8094 躲在 Nginx 背后，安全组不暴露。
 
 ---
 
@@ -49,15 +49,15 @@ CREATE DATABASE IF NOT EXISTS chat_db
 1. 双击 [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat)
 2. 脚本自动：
    - 在 [`go-chat-server/`](../go-chat-server/) 下 `go build` 编译 `server.exe`
-   - 前台启动，死守 **8194** 端口
+   - 前台启动，死守 **8094** 端口
    - GORM `AutoMigrate` 自动对齐 MySQL 表结构（首次启动建表）
 3. 看到如下日志即成功：
 
 ```
 MySQL 连接成功，AutoMigrate 完成
-🚀 go-chat-server 启动成功，监听地址: :8194
-   API 基路径: http://127.0.0.1:8194/api
-   WebSocket:  ws://127.0.0.1:8194/ws
+🚀 go-chat-server 启动成功，监听地址: :8094
+    API 基路径: http://127.0.0.1:8094/api
+    WebSocket:  ws://127.0.0.1:8094/ws
 ```
 
 > 终端保持打开，`Ctrl + C` 停止。
@@ -67,28 +67,28 @@ MySQL 连接成功，AutoMigrate 完成
 1. 双击 [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat)
 2. 脚本自动：
    - 检查 `node_modules`，首次自动 `npm install`
-   - 设置环境变量 `VITE_GO_BASE_URL=http://127.0.0.1:8194`
-   - 启动 Vite 开发服务器，浏览器打开 `http://localhost:8084`
-3. Vite 内置 proxy 将 `/api` 转发到 `127.0.0.1:8194`
+   - 设置环境变量 `VITE_GO_BASE_URL=http://127.0.0.1:8094`
+   - 启动 Vite 开发服务器，浏览器打开 `http://localhost:5174`
+3. Vite 内置 proxy 将 `/api` 转发到 `127.0.0.1:8094`
 
 ### 3.4 验证
 
 ```bash
 # Go 后端存活
-curl http://127.0.0.1:8194/api/ping
+curl http://127.0.0.1:8094/api/ping
 
 # 前端页面
-curl -I http://localhost:8084
+curl -I http://localhost:5174
 ```
 
 ### 3.5 本地架构拓扑
 
 ```
-浏览器 http://localhost:8084 (Vite)
+浏览器 http://localhost:5174 (Vite)
        │
-       ├─ /api → proxy → http://127.0.0.1:8194 (Go 直连)
+       ├─ /api → proxy → http://127.0.0.1:8094 (Go 直连)
        │
-       └─ ws://127.0.0.1:8194/ws (WebSocket 直连)
+       └─ ws://127.0.0.1:8094/ws (WebSocket 直连)
 ```
 
 ---
@@ -99,7 +99,7 @@ curl -I http://localhost:8084
 
 | 项目 | 要求 |
 |------|------|
-| 腾讯云 CVM | 已开通，安全组**只开放 8094 端口** |
+| 腾讯云 CVM | 已开通，安全组**只开放 8084 端口** |
 | 云上 MySQL | 已安装，创建 `chat_db` 库 |
 | 云上 Redis | 已安装（可选，通过 systemd `Environment="REDIS_ENABLE=false"` 关闭） |
 | 云上 Nginx | 已安装，若未安装脚本自动 `apt install` |
@@ -131,7 +131,7 @@ $DOMAIN    = "realapex.site"
 | [1/6] | 本地交叉编译 Linux 二进制 (`go build -ldflags "-s -w"`) | Windows → 本地 |
 | [2/6] | SCP 上传：二进制 + 配置 + systemd 服务 + Nginx 配置 | 本地 → 腾讯云 |
 | [3/6] | SSH 远程：`chmod` 赋权 → `systemctl daemon-reload` → 重启 `chat-server` → 重载 Nginx | 腾讯云内 |
-| [4/6] | SSH + curl 内检 Go `127.0.0.1:8194` + 外检 HTTPS `8094` | 双链路探测 |
+| [4/6] | SSH + curl 内检 Go `127.0.0.1:8094` + 外检 HTTPS `8084` | 双链路探测 |
 | [5/6] | 清理本地编译产物 | 本地 |
 | [6/6] | 打印外部访问地址 | — |
 
@@ -144,13 +144,13 @@ $DOMAIN    = "realapex.site"
   │  腾讯云 CVM                                │
   │                                           │
   │  Nginx (宿主机)                            │
-  │  listen 8094 ssl                          │
-  │  ├─ /api → proxy http://127.0.0.1:8194    │
-  │  ├─ /ws  → proxy http://127.0.0.1:8194    │
+  │  listen 8084 ssl                          │
+  │  ├─ /api → proxy http://127.0.0.1:8094    │
+  │  ├─ /ws  → proxy http://127.0.0.1:8094    │
   │  └─ /uploads/ → proxy 静态资源             │
   │       │                                   │
   │  go-chat-server (systemd 守护)             │
-  │  listen 127.0.0.1:8194                    │
+  │  listen 127.0.0.1:8094                    │
   │  WorkingDirectory /root/chat-server        │
   │  ├─ config/config.yaml                    │
   │  └─ uploads/ (文件存储)                    │
@@ -160,9 +160,9 @@ $DOMAIN    = "realapex.site"
   └───────────────────────────────────────────┘
 
 对外地址:
-  API:        https://你的域名:8094/api
-  WebSocket:  wss://你的域名:8094/ws
-  文件:       https://你的域名:8094/uploads/
+  API:        https://你的域名:8084/api
+  WebSocket:  wss://你的域名:8084/ws
+  文件:       https://你的域名:8084/uploads/
 ```
 
 ### 4.5 更新部署
@@ -200,7 +200,7 @@ systemctl stop chat-server
 - 内网已有一台 Windows 服务器（管理员权限，用于注册 WinSW 服务）
 - 内网 MySQL 已创建 `chat_db` 库
 - **Redis 关闭**：编辑 [`build-server-lan.bat`](../deploy/build-server-lan.bat:11) 头部参数，设 `set "REDIS_ENABLE=false"`，构建时自动展开到 config.yaml；系统自动降级为纯 MySQL 模式（在线状态走内存 map，未读走 MySQL 实时查询）
-- 若内网有 Nginx 且你有权限修改其配置，可复用 Nginx 反代（监听 8094）；若无，客户端直连 Go 的 8194
+- 若内网有 Nginx 且你有权限修改其配置，可复用 Nginx 反代（监听 8084）；若无，客户端直连 Go 的 8094
 
 ### 5.2 构建 & 部署步骤
 
@@ -237,13 +237,13 @@ set "UPLOAD_DIR=D:/data/chat-server/uploads"
 
 **步骤 5 (可选)** — 配置内网 Nginx 反代。
 
-联系管理员在内网 Nginx 中新增配置块（参照 [`deploy/nginx-chat.conf`](../deploy/nginx-chat.conf)），监听内网 `8094`：
+联系管理员在内网 Nginx 中新增配置块（参照 [`deploy/nginx-chat.conf`](../deploy/nginx-chat.conf)），监听内网 `8084`：
 
-- `/api` → `proxy_pass http://127.0.0.1:8194`
+- `/api` → `proxy_pass http://127.0.0.1:8094`
 - `/ws` → `proxy_pass` 带 `Upgrade` 头
 - `/uploads/` → 静态资源代理
 
-若无 Nginx 权限，客户端直接配置 `VITE_GO_BASE_URL=http://<内网IP>:8194` 直连。
+若无 Nginx 权限，客户端直接配置 `VITE_GO_BASE_URL=http://<内网IP>:8094` 直连。
 
 ### 5.3 内网 Redis 降级说明
 
@@ -297,16 +297,16 @@ CREATE DATABASE IF NOT EXISTS chat_db
 
 ```env
 VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=http://127.0.0.1:8194
-VITE_GO_WS_URL=ws://127.0.0.1:8194/ws
+VITE_GO_BASE_URL=http://127.0.0.1:8094
+VITE_GO_WS_URL=ws://127.0.0.1:8094/ws
 ```
 
 **生产打包** ([`.env.production`](../client-chat-tauri/.env.production))：
 
 ```env
 VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=https://realapex.site:8094
-VITE_GO_WS_URL=wss://realapex.site:8094/ws
+VITE_GO_BASE_URL=https://realapex.site:8084
+VITE_GO_WS_URL=wss://realapex.site:8084/ws
 ```
 
 > `VITE_BACKEND_TYPE` 取值：`SUPABASE`（一期 Supabase 后端）或 `GO`（二期自建 Go 后端）。
@@ -335,7 +335,7 @@ journalctl -u chat-server --no-pager -n 50
 # 常见原因：
 # 1. config.yaml 中 MySQL 密码/地址错误
 # 2. MySQL 未创建 chat_db 库
-# 3. 端口 8194 被占用 → lsof -i :8194
+# 3. 端口 8094 被占用 → lsof -i :8094
 # 4. Redis 连接失败且 enable=true → 临时改为 false 或启动 Redis
 ```
 
@@ -344,9 +344,9 @@ journalctl -u chat-server --no-pager -n 50
 ```bash
 # 确认 Go 进程存活
 systemctl status chat-server
-curl http://127.0.0.1:8194/api/ping
+curl http://127.0.0.1:8094/api/ping
 
-# 确认 Nginx 配置中 proxy_pass 端口正确（8194，非 8094）
+# 确认 Nginx 配置中 proxy_pass 端口正确（8094，非 8084）
 grep proxy_pass /etc/nginx/conf.d/app-chat.conf
 ```
 
@@ -360,10 +360,10 @@ grep proxy_pass /etc/nginx/conf.d/app-chat.conf
 
 ```bash
 # Linux
-lsof -i :8094 -i :8194
+lsof -i :8084 -i :8094
 
 # Windows
-netstat -ano | findstr "8094 8194 8084"
+netstat -ano | findstr "8084 8094 5174"
 ```
 
 ### 8.5 腾讯云安全组放行
@@ -372,9 +372,9 @@ netstat -ano | findstr "8094 8194 8084"
 
 | 端口 | 协议 | 来源 | 说明 |
 |------|------|------|------|
-| 8094 | TCP | 0.0.0.0/0 | Nginx HTTPS/WSS 入口 |
+| 8084 | TCP | 0.0.0.0/0 | Nginx HTTPS/WSS 入口 |
 
-> **不需要**开放 8194（Go 只绑 127.0.0.1）。
+> **不需要**开放 8094（Go 只绑 127.0.0.1）。
 
 ---
 
@@ -406,7 +406,7 @@ app-chat/
 ├── client-chat-tauri/
 │   ├── .env.development           # 本地环境变量
 │   ├── .env.production            # 生产环境变量
-│   ├── vite.config.ts             # Vite 配置 (端口 8084 + proxy)
+│   ├── vite.config.ts             # Vite 配置 (端口 5174 + proxy)
 │   ├── src/
 │   │   ├── services/              # 网络层适配器
 │   │   ├── stores/                # Pinia 状态管理
@@ -424,7 +424,7 @@ app-chat/
 
 > 📌 **关键提醒**
 >
-> 1. **端口铁律**：对外 8094 (Nginx)，对内 8194 (Go)，开发 8084 (Vite)
+> 1. **端口铁律**：对外 8084 (Nginx)，对内 8094 (Go)，开发 5174 (Vite)
 > 2. **GORM AutoMigrate** 是唯一的建表机制，禁止手动执行 DDL
 > 3. **Redis 可关**：`redis.enable: false` 后自动降级，不崩不 panic
 > 4. **JWT 密钥**：生产部署前务必修改 [`chat-server.service`](../deploy/chat-server.service) 中 `Environment="JWT_SECRET=..."` 的值

@@ -12,8 +12,8 @@ $SERVER_USER = "root"
 $REMOTE_DIR  = "/root/chat-server"                 # 服务端工作目录
 $LOCAL_EXE   = "go-chat-server"                    # Linux 二进制文件名（无 .exe）
 $SERVICE_NAME = "chat-server"                      # systemd 服务名
-$INTERNAL_PORT = 8194                              # Go 内部 HTTP 端口（仅 127.0.0.1）
-$NGINX_PORT    = 8094                              # Nginx SSL 对外端口
+$INTERNAL_PORT = 8094                              # Go 内部 HTTP 端口（仅 127.0.0.1）
+$NGINX_PORT    = 8084                              # Nginx SSL 对外端口
 
 Write-Host "  目标: ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}" -ForegroundColor DarkGray
 Write-Host "  架构: HTTPS :${NGINX_PORT} (Nginx) → HTTP 127.0.0.1:${INTERNAL_PORT} (Go)" -ForegroundColor DarkGray

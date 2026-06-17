@@ -5,7 +5,7 @@
   "identifier": "com.chat.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:8084",
+    "devUrl": "http://localhost:5174",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },

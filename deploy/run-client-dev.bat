@@ -3,7 +3,7 @@ chcp 65001 >nul
 cls
 
 echo ==================================================
-echo   📦 正在启动前端开发服务器 [端口: 8084]...
+echo   📦 正在启动前端开发服务器 [端口: 5174]...
 echo ==================================================
 echo.
 
@@ -11,10 +11,10 @@ echo.
 cd /d "%~dp0..\client-chat-tauri"
 
 :: ---------- 修正后端端口 ----------
-:: .env 文件已配置为 8194，Go 后端也监听 8194；这里用环境变量二次兜底
+:: .env 文件已配置为 8094，Go 后端也监听 8094；这里用环境变量二次兜底
 :: 这里用环境变量强行覆盖，Vite 会在 loadEnv 阶段拾取
-set VITE_GO_BASE_URL=http://127.0.0.1:8194
-set VITE_GO_WS_URL=ws://127.0.0.1:8194/ws
+set VITE_GO_BASE_URL=http://127.0.0.1:8094
+set VITE_GO_WS_URL=ws://127.0.0.1:8094/ws
 
 echo 🔗 后端连接已修正：
 echo    API       → %VITE_GO_BASE_URL%
@@ -39,8 +39,8 @@ if not exist "node_modules\" (
 echo 🚀 正在启动 Vite 开发服务器...
 echo.
 echo ╔════════════════════════════════════════════════════╗
-echo ║  📌 浏览器打开 http://localhost:8084            ║
-echo ║  📌 API 代理已自动转发到 → http://127.0.0.1:8194 ║
+echo ║  📌 浏览器打开 http://localhost:5174            ║
+echo ║  📌 API 代理已自动转发到 → http://127.0.0.1:8094 ║
 echo ║  ⚡ 先启动 run-backend-dev.bat，再启动本脚本      ║
 echo ╚════════════════════════════════════════════════════╝
 echo.

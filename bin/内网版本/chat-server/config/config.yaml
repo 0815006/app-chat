@@ -4,7 +4,7 @@
 #   - 内网 LAN 部署：build-server-lan.bat 构建时 set 环境变量 → --expand-config 展开为写死值的 config.yaml
 #   - 腾讯云部署：systemd Environment= 注入环境变量覆盖默认值
 server:
-  port: 8194
+  port: 8094
   mode: release  # debug | release | test
 
 database:
@@ -29,7 +29,7 @@ jwt:
 
 upload:
   dir: "D:/data/chat-server/uploads"
-  url_prefix: "http://127.0.0.1:8194/uploads"
+  url_prefix: "http://127.0.0.1:8094/uploads"
   max_img: 10    # 图片最大尺寸(MB)
   max_file: 500  # 文件最大尺寸(MB)
   max_voice: 5  # 语音最大尺寸(MB)

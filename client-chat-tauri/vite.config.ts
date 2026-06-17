@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
     clearScreen: false,
     server: {
       // Tauri 预期固定端口
-      port: 8084,
+      port: 5174,
       strictPort: true,
       // 支持 Tauri 桌面应用通过局域网访问 dev server
       host: host || false,
@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: env.VITE_GO_BASE_URL || 'http://127.0.0.1:8194',
+          target: env.VITE_GO_BASE_URL || 'http://127.0.0.1:8094',
           changeOrigin: true,
         },
       },

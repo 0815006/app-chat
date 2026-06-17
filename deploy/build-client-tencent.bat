@@ -41,7 +41,7 @@ cd /d "%PROJECT_ROOT%\client-chat-tauri"
 
 echo   首次编译约 5-15 分钟，增量编译约 1-3 分钟
 echo   如卡住不动是正常的（Rust 正在编译依赖）
-echo   连接后端: 腾讯云 HTTPS :8094
+echo   连接后端: 腾讯云 HTTPS :8084
 echo.
 echo ==================================================
 echo   ██████  构建进行中，请耐心等待...
@@ -122,7 +122,7 @@ echo   📌 安装方式（任选其一）:
 echo       1. 直接运行 client-chat-tauri.exe（免安装绿色版）
 echo       2. 双击 Chat_*.msi 安装到系统
 echo.
-echo   📌 客户端会自动连接: 腾讯云 HTTPS :8094
+echo   📌 客户端会自动连接: 腾讯云 HTTPS :8084
 echo ==================================================
 echo.
 
