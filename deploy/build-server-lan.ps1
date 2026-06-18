@@ -1,6 +1,11 @@
-# =================================================================
+﻿# =================================================================
 #        🔨 构建 Web 版本 → 内网部署（PowerShell 版）
 #        由 build-server-lan.bat 改写而来，功能完全一致
+#
+#  运行方式（任选）:
+#    1. 右键 → 使用 PowerShell 运行
+#    2. 如遇执行策略限制:
+#       powershell -ExecutionPolicy Bypass -File .\build-server-lan.ps1
 # =================================================================
 $ErrorActionPreference = "Continue"
 $Host.UI.RawUI.WindowTitle = "🔨 构建 Web 版本 → 内网部署"
@@ -11,15 +16,16 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host ""
 
 # ─── 📌 内网部署参数（改内网只改这里）────────────────────────────
-$CHAT_SERVER_MODE = "release"
-$DB_HOST     = "22.188.9.144"
-$DB_PORT     = "3306"
-$DB_USER     = "root"
-$DB_PASSWORD = "Star002!"
-$DB_NAME     = "chat_db"
-$REDIS_ENABLE = "false"
-$JWT_SECRET  = "go-chat-server-prod-jwt-secret-change-me"
-$UPLOAD_DIR  = "D:/data/chat-server/uploads"
+# 必须用 $env: 前缀，Go 二进制 --expand-config 通过 os.Getenv() 读取
+$env:CHAT_SERVER_MODE = "release"
+$env:DB_HOST     = "22.188.9.144"
+$env:DB_PORT     = "3306"
+$env:DB_USER     = "root"
+$env:DB_PASSWORD = "Star002!"
+$env:DB_NAME     = "chat_db"
+$env:REDIS_ENABLE = "false"
+$env:JWT_SECRET  = "go-chat-server-prod-jwt-secret-change-me"
+$env:UPLOAD_DIR  = "D:/data/chat-server/uploads"
 # url_prefix 不设 — main.go 启动时自动检测本机 IP 生成
 # ────────────────────────────────────────────────────────────────
 
@@ -59,25 +65,25 @@ if (-not (Test-Path "go-chat-server\config\config.yaml")) {
 Write-Host "✅ 所有源文件就绪" -ForegroundColor Green
 Write-Host ""
 Write-Host "📌 内网部署参数:"
-Write-Host "   mode=$CHAT_SERVER_MODE"
-Write-Host "   DB=$DB_HOST`:$DB_PORT/$DB_NAME"
-Write-Host "   Redis=$REDIS_ENABLE"
-Write-Host "   upload=$UPLOAD_DIR"
+Write-Host "   mode=$env:CHAT_SERVER_MODE"
+Write-Host "   DB=$env:DB_HOST`:$env:DB_PORT/$env:DB_NAME"
+Write-Host "   Redis=$env:REDIS_ENABLE"
+Write-Host "   upload=$env:UPLOAD_DIR"
 Write-Host ""
 
 # ========== Step 2: 构建前端 dist ==========
-Write-Host "[2/5] ⚡ 构建 Vue 前端（LAN 内网配置 — 同源自适应，无需硬编码 IP）..." -ForegroundColor Yellow
+Write-Host "[2/5] ⚡ 构建 Vue 前端（同源自适应，无需硬编码 IP）..." -ForegroundColor Yellow
 
 Push-Location "$ProjectRoot\client-chat-tauri"
 
 Write-Host ""
 Write-Host "=================================================="
 Write-Host "  Vite 正在编译（首次约 30-60 秒）..."
-Write-Host "  mode: lan-server → 继承 .env 基线，前后端同源"
+Write-Host "  mode: web-spa → 继承 .env 基线，前后端同源"
 Write-Host "=================================================="
 Write-Host ""
 
-& npm run build:lan-server
+& npm run build:web-spa
 $BuildResult = $LASTEXITCODE
 
 if ($BuildResult -ne 0) {
@@ -196,7 +202,7 @@ Write-Host "      1. 将整个 chat-server 目录复制到内网服务器"
 Write-Host "      2. 以管理员运行 startServer.bat 注册并启动服务"
 Write-Host "      3. 浏览器访问 http://服务器IP:8094"
 Write-Host ""
-Write-Host "  💡 修改内网参数：编辑本 ps1 头部 `$变量`，重新构建即可"
+Write-Host "  💡 修改内网参数: 编辑本 ps1 头部 `$env:变量，重新构建即可"
 Write-Host "     go-chat-server.exe 同时提供："
 Write-Host "     - Go API 后端 (HTTP + WebSocket，端口 8094)"
 Write-Host "     - Vue 前端 SPA (内嵌，/ 路径)"

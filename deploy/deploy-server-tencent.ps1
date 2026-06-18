@@ -1,4 +1,4 @@
-﻿# =================================================================
+# =================================================================
 #        🚀 go-chat-server — 腾讯云一键全自动生产部署脚本
 #        参照 deploy/nginx-aicode.conf 模式，HTTPS + Nginx 反代
 # =================================================================
@@ -16,10 +16,52 @@ $INTERNAL_PORT = 8094                              # Go 内部 HTTP 端口（仅
 $NGINX_PORT    = 8084                              # Nginx SSL 对外端口
 
 Write-Host "  目标: ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}" -ForegroundColor DarkGray
-Write-Host "  架构: HTTPS :${NGINX_PORT} (Nginx) → HTTP 127.0.0.1:${INTERNAL_PORT} (Go)" -ForegroundColor DarkGray
+Write-Host "  架构: HTTPS :${NGINX_PORT} (Nginx) → HTTP 127.0.0.1:${INTERNAL_PORT} (Go, 内嵌 Vue SPA)" -ForegroundColor DarkGray
 
-# ─── 2. 本地交叉编译 → Linux amd64 二进制包 ───────────────────────
-Write-Host "`n$Stage [1/6] 正在本地交叉编译 Linux 生产环境专用二进制包..." -ForegroundColor Yellow
+# ─── 2. 构建 Vue 前端 dist ─────────────────────────────────────────
+Write-Host "`n$Stage [1/7] 构建 Vue 前端（同源自适应，前后端统一端口）..." -ForegroundColor Yellow
+
+Push-Location "$PSScriptRoot\..\client-chat-tauri"
+
+Write-Host "  执行: npm run build:web-spa (mode=web-spa → .env 基线，空 URL 同源)" -ForegroundColor DarkGray
+Write-Host "=================================================="
+Write-Host "  Vite 正在编译（首次约 30-60 秒）..."
+Write-Host "=================================================="
+
+& npm run build:web-spa
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ 前端构建失败！" -ForegroundColor Red
+    Pop-Location
+    Read-Host "按回车键退出..."
+    Exit 1
+}
+Write-Host "[Success] 前端构建完成" -ForegroundColor Green
+
+Pop-Location
+
+# ─── 3. 复制前端产物到 Go embed 目录 ───────────────────────────────
+Write-Host "`n$Stage [2/7] 复制前端产物到 Go 嵌入目录..." -ForegroundColor Yellow
+
+$DistSrc = "$PSScriptRoot\..\client-chat-tauri\dist"
+$DistDst = "$PSScriptRoot\..\go-chat-server\frontend\dist"
+
+if (-not (Test-Path $DistSrc)) {
+    Write-Host "❌ 未找到构建产物: $DistSrc" -ForegroundColor Red
+    Read-Host "按回车键退出..."
+    Exit 1
+}
+
+# 清空目标目录并重新复制
+if (Test-Path $DistDst) {
+    Remove-Item -Recurse -Force $DistDst
+}
+New-Item -ItemType Directory -Force $DistDst | Out-Null
+
+Copy-Item -Recurse -Force "$DistSrc\*" $DistDst
+Write-Host "[Success] 前端产物已复制: $DistSrc → $DistDst" -ForegroundColor Green
+
+# ─── 4. 本地交叉编译 → Linux amd64 二进制包（内嵌前端） ──────────
+Write-Host "`n$Stage [3/7] 正在本地交叉编译 Linux 生产环境专用二进制包（内嵌前端）..." -ForegroundColor Yellow
 
 Push-Location "$PSScriptRoot\..\go-chat-server"
 
@@ -28,13 +70,14 @@ $env:GOARCH = "amd64"
 $env:CGO_ENABLED = "0"                            # 纯静态编译，无 glibc 依赖
 $env:GOPROXY = "https://goproxy.cn,https://proxy.golang.org,direct"  # 国内代理，防墙
 
-$buildCmd = "go build -ldflags `"-s -w`" -o $LOCAL_EXE main.go"
+$buildCmd = "go build -ldflags `"-s -w`" -o $LOCAL_EXE ."
 Write-Host "  执行: $buildCmd" -ForegroundColor DarkGray
 Invoke-Expression $buildCmd
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 本地交叉编译失败，请检查 Go 代码语法！" -ForegroundColor Red
     Pop-Location
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
@@ -43,20 +86,15 @@ Write-Host "[Success] Linux 编译完成 ($LOCAL_EXE, ${fileSize}MB)" -Foregroun
 
 Pop-Location
 
-# ─── 3. 自动化上传到腾讯云服务器 ─────────────────────────────────
-Write-Host "`n$Stage [2/6] 正在通过 SCP 上传文件到腾讯云..." -ForegroundColor Yellow
+# ─── 5. 自动化上传到腾讯云服务器 ─────────────────────────────────
+Write-Host "`n$Stage [4/7] 正在通过 SCP 上传文件到腾讯云..." -ForegroundColor Yellow
 
 # 3.0 先停服释放旧二进制文件（防止 SCP overwrite 被锁）
 Write-Host "  停服释放旧文件: systemctl stop + rm" -ForegroundColor DarkGray
 ssh "${SERVER_USER}@${SERVER_IP}" "systemctl stop chat-server 2>/dev/null; sleep 1; rm -f ${REMOTE_DIR}/${LOCAL_EXE}; mkdir -p ${REMOTE_DIR}/config ${REMOTE_DIR}/uploads"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ SSH 连接失败！请检查免密登录配置或服务器 IP。" -ForegroundColor Red
-    Exit 1
-}
-
-# 3.1 创建远程工作目录（已并入上一步）
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ SSH 连接失败！请检查免密登录配置或服务器 IP。" -ForegroundColor Red
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
@@ -65,6 +103,7 @@ Write-Host "  上传二进制: go-chat-server → ${REMOTE_DIR}/" -ForegroundCol
 scp "$PSScriptRoot\..\go-chat-server\$LOCAL_EXE" "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 二进制上传失败！请检查 22 端口或磁盘空间。" -ForegroundColor Red
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
@@ -73,6 +112,7 @@ Write-Host "  上传配置: config.yaml → ${REMOTE_DIR}/config/config.yaml" -F
 scp "$PSScriptRoot\..\go-chat-server\config\config.yaml" "${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/config/config.yaml"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 配置文件上传失败！" -ForegroundColor Red
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
@@ -81,6 +121,7 @@ Write-Host "  上传 systemd 服务: chat-server.service → /etc/systemd/system
 scp "$PSScriptRoot\chat-server.service" "${SERVER_USER}@${SERVER_IP}:/etc/systemd/system/chat-server.service"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ systemd 服务文件上传失败！" -ForegroundColor Red
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
@@ -89,13 +130,14 @@ Write-Host "  上传 Nginx 配置: nginx-chat.conf → /etc/nginx/conf.d/app-cha
 scp "$PSScriptRoot\nginx-chat.conf" "${SERVER_USER}@${SERVER_IP}:/etc/nginx/conf.d/app-chat.conf"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Nginx 配置文件上传失败！" -ForegroundColor Red
+    Read-Host "按回车键退出..."
     Exit 1
 }
 
 Write-Host "[Success] 全部文件已推送到远程目录: $REMOTE_DIR" -ForegroundColor Green
 
-# ─── 4. 远程通电，激活生产环境 ────────────────────────────────────
-Write-Host "`n$Stage [3/6] 正在远程连接腾讯云，执行服务注册与重启..." -ForegroundColor Yellow
+# ─── 6. 远程通电，激活生产环境 ────────────────────────────────────
+Write-Host "`n$Stage [5/7] 正在远程连接腾讯云，执行服务注册与重启..." -ForegroundColor Yellow
 
 # 通过 SSH 发送复合命令：赋权 → 刷新 daemon → 重启服务 → 重载 Nginx → 打印状态
 # 注意：heredoc 在 Windows 上生成 CRLF，必须转为 LF 否则 Linux 上命令全部带 \r 失败
@@ -122,8 +164,8 @@ echo '   WSS:        wss://${DOMAIN}:${NGINX_PORT}/ws'
 
 ssh "${SERVER_USER}@${SERVER_IP}" $remoteScript
 
-# ─── 5. 快速健康检查 ──────────────────────────────────────────────
-Write-Host "`n$Stage [4/6] 快速健康检查..." -ForegroundColor Yellow
+# ─── 7. 快速健康检查 ──────────────────────────────────────────────
+Write-Host "`n$Stage [6/7] 快速健康检查..." -ForegroundColor Yellow
 Start-Sleep -Seconds 1
 
 # 5.1 先 SSH 进服务器内部 curl Go 本地端口（Go 只绑 127.0.0.1，公网 IP 打不进来）
@@ -144,8 +186,8 @@ try {
     Write-Host "⚠️  HTTPS 检查未通过 ($nginxUrl)，请确认安全组已开放 ${NGINX_PORT} 端口。" -ForegroundColor Yellow
 }
 
-# ─── 6. 清理本地编译产物 ──────────────────────────────────────────
-Write-Host "`n$Stage [5/6] 清理本地编译缓存..." -ForegroundColor Yellow
+# ─── 8. 清理本地编译产物 ──────────────────────────────────────────
+Write-Host "`n$Stage [7/7] 清理本地编译缓存..." -ForegroundColor Yellow
 Remove-Item "$PSScriptRoot\..\go-chat-server\$LOCAL_EXE" -ErrorAction SilentlyContinue
 Write-Host "[Success] 本地缓存已清理" -ForegroundColor Green
 
@@ -156,6 +198,7 @@ Write-Host "============================================================" -Foreg
 Write-Host "   架构: 客户端 → HTTPS :${NGINX_PORT} (Nginx) → HTTP :${INTERNAL_PORT} (Go)"
 Write-Host ""
 Write-Host "   外部访问地址（HTTPS）："
+Write-Host "     Web SPA:    https://${DOMAIN}:${NGINX_PORT}/"
 Write-Host "     API:        https://${DOMAIN}:${NGINX_PORT}/api"
 Write-Host "     WebSocket:  wss://${DOMAIN}:${NGINX_PORT}/ws"
 Write-Host "     Ping:       https://${DOMAIN}:${NGINX_PORT}/api/ping"

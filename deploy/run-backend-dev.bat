@@ -32,7 +32,7 @@ echo --------------------------------------------------
 :: ---------- 编译 ----------
 echo.
 echo 🛠️  正在编译 server.exe ...
-go build -ldflags "-s -w" -o server.exe main.go
+go build -ldflags "-s -w" -o server.exe .
 
 if %errorlevel% neq 0 (
     echo.

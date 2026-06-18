@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 chcp 65001 >nul 2>&1
 title 🔨 构建 Web 版本 → 内网部署
 setlocal enabledelayedexpansion
@@ -59,18 +59,18 @@ echo    upload=%UPLOAD_DIR%
 echo.
 
 :: ========== Step 2: 构建前端 dist ==========
-echo [2/5] ⚡ 构建 Vue 前端（LAN 内网配置 — 同源自适应，无需硬编码 IP）...
+echo [2/5] ⚡ 构建 Vue 前端（同源自适应，无需硬编码 IP）...
 
 cd /d "%PROJECT_ROOT%\client-chat-tauri"
 
 echo.
 echo ==================================================
 echo   Vite 正在编译（首次约 30-60 秒）...
-echo   mode: lan-server → 继承 .env 基线，前后端同源
+echo   mode: web-spa → 继承 .env 基线，前后端同源
 echo ==================================================
 echo.
 
-call npm run build:lan-server
+call npm run build:web-spa
 set BUILD_RESULT=%errorlevel%
 
 if %BUILD_RESULT% neq 0 (
@@ -121,7 +121,7 @@ echo   输出: go-chat-server.exe
 echo.
 
 set "GO_OUT=go-chat-server.exe"
-go build -tags embed -ldflags "-s -w" -o "%GO_OUT%" .
+go build -ldflags "-s -w" -o "%GO_OUT%" .
 if %errorlevel% neq 0 (
     echo.
     echo ❌ Go 编译失败！
@@ -146,7 +146,7 @@ if exist "%GO_OUT%" (
 )
 
 :: 构建时展开 config.yaml（${VAR:default} → 内网实际值）
-echo   展开 config.yaml（注入内网参数）→ %OUT_DIR%\config\config.yaml
+echo   展开 config.yaml → %OUT_DIR%\config\config.yaml
 "%GO_OUT%" --expand-config "%OUT_DIR%\config\config.yaml"
 if %errorlevel% neq 0 (
     echo ❌ 配置文件展开失败！
@@ -160,11 +160,10 @@ echo   🏁  构建完成！内网 Web 全合一版本
 echo ==================================================
 echo.
 echo   📌 最终产物目录: %OUT_DIR%\
-echo         ├── %GO_OUT%          (含 Go API + Vue 前端)
-echo         ├── config\
-echo         │   └── config.yaml   (内置内网实际参数)
-echo         ├── ChatServer.exe    (WinSW)
-echo         ├── ChatServer.xml    (WinSW 服务定义)
+echo         ├── %GO_OUT%
+echo         ├── config\config.yaml
+echo         ├── ChatServer.exe    ^(WinSW^)
+echo         ├── ChatServer.xml    ^(WinSW 服务定义^)
 echo         ├── startServer.bat
 echo         └── stopServer.bat
 echo.
@@ -173,10 +172,7 @@ echo       1. 将整个 chat-server 目录复制到内网服务器
 echo       2. 以管理员运行 startServer.bat 注册并启动服务
 echo       3. 浏览器访问 http://服务器IP:8094
 echo.
-echo   💡 修改内网参数：编辑本 bat 头部 set 变量，重新构建即可
-echo      go-chat-server.exe 同时提供：
-echo      - Go API 后端 (HTTP + WebSocket，端口 8094)
-echo      - Vue 前端 SPA (内嵌，/ 路径)
+echo   💡 修改内网参数: 编辑本 bat 头部 set 变量，重新构建即可
 echo ==================================================
 echo.
 

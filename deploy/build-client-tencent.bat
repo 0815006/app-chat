@@ -103,12 +103,18 @@ if exist "%SRC_BUNDLE%\msi\" (
         echo   复制 %%~nxf → %OUT_DIR%\
         copy /y "%%f" "%OUT_DIR%\" >nul
     )
-    for %%f in ("%SRC_BUNDLE%\msi\*-setup.exe") do (
+) else (
+    echo   ⚠️ 未找到 MSI 安装包
+)
+
+:: 复制 NSIS 安装包（Tauri 2.x 的 setup.exe 在 bundle\nsis\ 下）
+if exist "%SRC_BUNDLE%\nsis\" (
+    for %%f in ("%SRC_BUNDLE%\nsis\*-setup.exe") do (
         echo   复制 %%~nxf → %OUT_DIR%\
         copy /y "%%f" "%OUT_DIR%\" >nul
     )
 ) else (
-    echo   ⚠️ 未找到 MSI 安装包
+    echo   ⚠️ 未找到 NSIS 安装包
 )
 
 echo.

@@ -22,9 +22,9 @@
 
 | 模式 | 场景 | 核心入口 | 中间件策略 |
 |------|------|---------|-----------|
-| **A：本地快速验证** | Windows 拖动 exe 直跑 | [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat) + [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat) | 借本地已装 MySQL + Redis |
-| **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) | 云上 MySQL + Docker Redis |
-| **C：独立内网私有部署** | 内网 Windows 服务器 | `build-server-lan.ps1` 一键构建 → WinSW 注册服务 | 内网现成 MySQL，Redis 关闭 |
+| **A：本地快速验证** | Windows 拖动 bat 直跑 | [`deploy/run-backend-dev.bat`](../deploy/run-backend-dev.bat) + [`deploy/run-client-dev.bat`](../deploy/run-client-dev.bat) | 借本地已装 MySQL + Redis |
+| **B：腾讯云公网部署** | 生产正规军，全自动流水线 | [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1) | Go 二进制内嵌 Vue SPA，Nginx 纯反代 |
+| **C：独立内网私有部署** | 内网 Windows 服务器 | [`deploy/build-server-lan.ps1`](../deploy/build-server-lan.ps1) 一键构建 → WinSW 注册服务 | 内网现成 MySQL，Redis 关闭 |
 
 ---
 
@@ -124,16 +124,17 @@ $DOMAIN    = "realapex.site"
 
 右键 → **使用 PowerShell 运行** [`deploy/deploy-server-tencent.ps1`](../deploy/deploy-server-tencent.ps1)
 
-全自动 6 步流水线：
+全自动 7 步流水线：
 
 | 步骤 | 操作 | 位置 |
 |------|------|------|
-| [1/6] | 本地交叉编译 Linux 二进制 (`go build -ldflags "-s -w"`) | Windows → 本地 |
-| [2/6] | SCP 上传：二进制 + 配置 + systemd 服务 + Nginx 配置 | 本地 → 腾讯云 |
-| [3/6] | SSH 远程：`chmod` 赋权 → `systemctl daemon-reload` → 重启 `chat-server` → 重载 Nginx | 腾讯云内 |
-| [4/6] | SSH + curl 内检 Go `127.0.0.1:8094` + 外检 HTTPS `8084` | 双链路探测 |
-| [5/6] | 清理本地编译产物 | 本地 |
-| [6/6] | 打印外部访问地址 | — |
+| [1/7] | 构建 Vue 前端 (`npm run build:web-spa`，同源自适应) | Windows → 本地 |
+| [2/7] | 复制前端产物到 Go embed 目录 | 本地 |
+| [3/7] | 本地交叉编译 Linux 二进制 (`go build -ldflags "-s -w" -o go-chat-server .`，内嵌 SPA) | Windows → 本地 |
+| [4/7] | SCP 上传：二进制 + 配置 + systemd 服务 + Nginx 配置 | 本地 → 腾讯云 |
+| [5/7] | SSH 远程：`chmod` 赋权 → `systemctl daemon-reload` → 重启 `chat-server` → 重载 Nginx | 腾讯云内 |
+| [6/7] | SSH + curl 内检 Go `127.0.0.1:8094` + 外检 HTTPS `8084` | 双链路探测 |
+| [7/7] | 清理本地编译产物 + 打印外部访问地址 | — |
 
 ### 4.4 生产架构拓扑
 
@@ -145,21 +146,24 @@ $DOMAIN    = "realapex.site"
   │                                           │
   │  Nginx (宿主机)                            │
   │  listen 8084 ssl                          │
-  │  ├─ /api → proxy http://127.0.0.1:8094    │
-  │  ├─ /ws  → proxy http://127.0.0.1:8094    │
-  │  └─ /uploads/ → proxy 静态资源             │
+  │  ├─ /         → proxy (Go 内嵌 SPA)        │
+  │  ├─ /api      → proxy http://127.0.0.1:8094 │
+  │  ├─ /ws       → proxy http://127.0.0.1:8094 │
+  │  └─ /uploads/ → proxy http://127.0.0.1:8094 │
   │       │                                   │
   │  go-chat-server (systemd 守护)             │
   │  listen 127.0.0.1:8094                    │
   │  WorkingDirectory /root/chat-server        │
   │  ├─ config/config.yaml                    │
-  │  └─ uploads/ (文件存储)                    │
+  │  ├─ uploads/ (文件存储)                    │
+  │  └─ 内嵌 Vue SPA (/frontend/dist)         │
   │       │                                   │
   │  MySQL (宿主机/Docker) :3306               │
   │  Redis (可选) :6379                        │
   └───────────────────────────────────────────┘
 
 对外地址:
+  Web SPA:    https://你的域名:8084/
   API:        https://你的域名:8084/api
   WebSocket:  wss://你的域名:8084/ws
   文件:       https://你的域名:8084/uploads/
@@ -168,10 +172,11 @@ $DOMAIN    = "realapex.site"
 ### 4.5 更新部署
 
 代码更新后，重新执行 `deploy-server-tencent.ps1` 即可。脚本会自动：
-- 重新交叉编译
-- SCP 覆盖二进制
+- 重新构建前端 + 复制到 embed 目录
+- 重新交叉编译（内嵌 SPA）
+- SCP 覆盖二进制 + Nginx 配置
 - `systemctl restart` 重启服务
-- Nginx 配置不变时可注释掉对应的 scp 行
+- 如果仅更新前端，建议用 `deploy-server-tencent.ps1` 一键完成（前端构建 → 嵌入 → 编译 → 上传一条龙）；如果仅修改 Go 代码，可注释掉前端构建步骤
 
 ### 4.6 systemd 常用命令
 
@@ -291,32 +296,24 @@ CREATE DATABASE IF NOT EXISTS chat_db
 
 ## 7. 客户端配置
 
-### 7.1 环境变量 (`.env`)
+### 7.1 环境变量文件说明
 
-**本地开发** ([`.env.development`](../client-chat-tauri/.env.development))：
-
-```env
-VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=http://127.0.0.1:8094
-VITE_GO_WS_URL=ws://127.0.0.1:8094/ws
-```
-
-**生产打包** ([`.env.production`](../client-chat-tauri/.env.production))：
-
-```env
-VITE_BACKEND_TYPE=GO
-VITE_GO_BASE_URL=https://realapex.site:8084
-VITE_GO_WS_URL=wss://realapex.site:8084/ws
-```
+| 文件 | 用途 | URL 策略 |
+|------|------|---------|
+| [`.env`](../client-chat-tauri/.env) | **基线**（所有环境共享默认值） | 空 URL → 同源自适应（`window.location` 推导） |
+| [`.env.development`](../client-chat-tauri/.env.development) | 本地开发 (`npm run dev`) | 直连 `127.0.0.1:8094` |
+| [`.env.lan`](../client-chat-tauri/.env.lan) | 内网 Tauri 桌面客户端模板 | 覆盖为内网服务器 IP |
+| [`.env.production`](../client-chat-tauri/.env.production) | 腾讯云 Tauri 桌面客户端 | 覆盖为 `realapex.site:8084` |
 
 > `VITE_BACKEND_TYPE` 取值：`SUPABASE`（一期 Supabase 后端）或 `GO`（二期自建 Go 后端）。
+>
+> **Web SPA 嵌入 Go 用** (`npm run build:web-spa`)：不读任何覆盖文件，仅继承 `.env` 基线空 URL，由 `goChatService.ts` 自动推导 `window.location`，实现同一份前端代码在内网/腾讯云均自适应。
 
-### 7.2 打包客户端
+### 7.2 打包 Tauri 桌面客户端
 
-```bash
-cd client-chat-tauri
-npm run tauri build
-```
+**腾讯云版本**：双击 [`deploy/build-client-tencent.bat`](../deploy/build-client-tencent.bat)
+
+**内网版本**：双击 [`deploy/build-client-lan.bat`](../deploy/build-client-lan.bat)（通过环境变量注入 `.env.lan` 中的内网地址，不修改任何文件）
 
 产物在 `client-chat-tauri/src-tauri/target/release/bundle/`：
 - `.msi` 安装包
@@ -385,14 +382,16 @@ app-chat/
 ├── deploy/
 │   ├── run-backend-dev.bat        # 模式 A：本地后端一键启动
 │   ├── run-client-dev.bat         # 模式 A：本地前端一键启动 (tauri:dev)
-│   ├── build-client-lan.bat       # 模式 B：打包内网 Tauri 桌面客户端 (.exe/.msi)
-│   ├── build-client-tencent.bat   # 模式 B：打包腾讯云 Tauri 桌面客户端 (.exe/.msi)
-│   ├── build-server-lan.ps1       # 模式 C：构建内网 Server all-in-one (Go + Vue)
-│   ├── deploy-server-tencent.ps1  # 模式 B：腾讯云 Go 后端全自动部署
-│   ├── nginx-chat.conf            # 模式 B/C：Nginx HTTPS 反代配置
+│   ├── build-client-lan.bat       # Tauri 桌面客户端 → 内网 (.env.lan)
+│   ├── build-client-tencent.bat   # Tauri 桌面客户端 → 腾讯云 (.env.production)
+│   ├── build-server-lan.bat       # 模式 C：构建内网 Server all-in-one (Go + Vue SPA)
+│   ├── build-server-lan.ps1       # 模式 C：同上 (PowerShell 版)
+│   ├── deploy-server-tencent.ps1  # 模式 B：腾讯云 Go 后端全自动部署（含内嵌 SPA）
+│   ├── nginx-chat.conf            # 模式 B：Nginx HTTPS 反代配置（全路径 proxy_pass）
 │   └── chat-server.service        # 模式 B：Linux systemd 服务定义
 ├── go-chat-server/
-│   ├── main.go                    # Go 入口
+│   ├── main.go                    # Go 入口（//go:embed all:frontend/dist）
+│   ├── frontend/dist/             # 构建时的 Vue SPA 产物（.gitkeep 占位，构建脚本自动填充）
 │   ├── config/
 │   │   ├── config.yaml            # 唯一配置文件（${ENV:default} 语法，本地 dev 走默认值）
 │   │   └── config.go              # 配置加载 + 环境变量展开器
@@ -404,11 +403,13 @@ app-chat/
 │   ├── initialize/                # DB/Redis/Router 初始化
 │   └── global/                    # 全局单例
 ├── client-chat-tauri/
-│   ├── .env.development           # 本地环境变量
-│   ├── .env.production            # 生产环境变量
+│   ├── .env                       # 基线（空 URL，同源自适应）
+│   ├── .env.development           # 本地开发环境变量
+│   ├── .env.lan                   # 内网 Tauri 客户端环境变量
+│   ├── .env.production            # 腾讯云 Tauri 客户端环境变量
 │   ├── vite.config.ts             # Vite 配置 (端口 5174 + proxy)
 │   ├── src/
-│   │   ├── services/              # 网络层适配器
+│   │   ├── services/              # 网络层适配器（IChatService → Supabase / Go）
 │   │   ├── stores/                # Pinia 状态管理
 │   │   ├── views/chat/            # 聊天主界面
 │   │   └── utils/                 # 工具函数

@@ -54,22 +54,18 @@ for /f "tokens=2 delims==" %%a in ('type "client-chat-tauri\.env.lan" ^| findstr
 echo 🎯 目标服务器: %SERVER_IP%
 echo.
 
-:: ========== Step 3: 用内网配置构建 Tauri 客户端 ==========
+:: ========== Step 3: 用环境变量注入内网配置，构建 Tauri 客户端 ==========
 echo [3/4] ⚡ 编译 Tauri 桌面客户端（内网版本）...
 
 cd /d "%PROJECT_ROOT%\client-chat-tauri"
 
-:: 备份原 .env.production
-set "ENV_PROD=.env.production"
-set "ENV_PROD_BAK=.env.production.bak"
-if exist "%ENV_PROD%" (
-    copy /y "%ENV_PROD%" "%ENV_PROD_BAK%" >nul
-    echo   已备份 %ENV_PROD% → %ENV_PROD_BAK%
+:: 从 .env.lan 读取 VITE_* 变量，注入当前进程环境变量
+:: Vite 构建时 process.env 的 VITE_* 优先级高于 .env 文件，无需修改任何文件
+for /f "tokens=1,* delims==" %%a in ('type ".env.lan" ^| findstr /r "^VITE_"') do (
+    set "%%a=%%b"
+    echo   注入 %%a=%%b
 )
-
-:: 用内网客户端配置替换
-copy /y ".env.lan" "%ENV_PROD%" >nul
-echo   已应用内网客户端环境变量
+echo   ✅ 内网环境变量已注入（零文件修改，.env.production 不受影响）
 echo.
 
 echo ==================================================
@@ -81,12 +77,6 @@ echo.
 
 call npm run tauri:build
 set BUILD_RESULT=%errorlevel%
-
-:: 恢复原 .env.production
-if exist "%ENV_PROD_BAK%" (
-    move /y "%ENV_PROD_BAK%" "%ENV_PROD%" >nul
-    echo   已恢复原 .env.production
-)
 
 if %BUILD_RESULT% neq 0 (
     echo.
@@ -131,12 +121,18 @@ if exist "%SRC_BUNDLE%\msi\" (
         echo   复制 %%~nxf → %OUT_DIR%\
         copy /y "%%f" "%OUT_DIR%\" >nul
     )
-    for %%f in ("%SRC_BUNDLE%\msi\*-setup.exe") do (
+) else (
+    echo   ⚠️ 未找到 MSI 安装包
+)
+
+:: 复制 NSIS 安装包（Tauri 2.x 的 setup.exe 在 bundle\nsis\ 下）
+if exist "%SRC_BUNDLE%\nsis\" (
+    for %%f in ("%SRC_BUNDLE%\nsis\*-setup.exe") do (
         echo   复制 %%~nxf → %OUT_DIR%\
         copy /y "%%f" "%OUT_DIR%\" >nul
     )
 ) else (
-    echo   ⚠️ 未找到 MSI 安装包
+    echo   ⚠️ 未找到 NSIS 安装包
 )
 
 echo.
