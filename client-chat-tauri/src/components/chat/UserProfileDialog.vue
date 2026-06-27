@@ -39,6 +39,23 @@ const avatarSrc = computed(() => {
 /** 姓名首字母（无头像时显示） */
 const initialChar = computed(() => (nickname.value[0] ?? '?').toUpperCase())
 
+/** 当前主题 */
+const currentTheme = computed<'dark' | 'light'>(() => authStore.currentUser?.theme ?? 'dark')
+const themeChanging = ref(false)
+
+async function toggleTheme() {
+  const next = currentTheme.value === 'dark' ? 'light' : 'dark'
+  themeChanging.value = true
+  try {
+    await authStore.setTheme(next)
+    toast.success(`已切换为${next === 'dark' ? '深色' : '浅色'}主题`)
+  } catch (e) {
+    toast.error('主题切换失败')
+  } finally {
+    themeChanging.value = false
+  }
+}
+
 function handleFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -126,13 +143,13 @@ function close() {
         @click.self="close"
       >
         <div
-          class="w-[400px] max-w-[92%] bg-[#1e1935] border border-[#2a1f5e] rounded-2xl shadow-2xl overflow-hidden"
+          class="w-[400px] max-w-[92%] bg-[var(--color-bg-dialog)] border border-[var(--color-border-strong)] rounded-2xl shadow-2xl overflow-hidden"
         >
           <!-- 标题栏 -->
-          <div class="flex items-center justify-between px-5 py-4 border-b border-[#2a1f5e]">
-            <h3 class="text-lg font-semibold text-[#e2e8f0]">个人信息</h3>
+          <div class="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border-strong)]">
+            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">个人信息</h3>
             <button
-              class="w-8 h-8 rounded-lg flex items-center justify-center text-[#718096] hover:bg-[#2a1f5e] hover:text-[#a0aec0] transition-colors cursor-pointer"
+              class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-hover-strong)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
               @click="close"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
@@ -147,7 +164,7 @@ function close() {
             <div class="relative group cursor-pointer" @click="($refs.fileInput as HTMLInputElement)?.click()">
               <div
                 v-if="avatarSrc"
-                class="w-24 h-24 rounded-full overflow-hidden border-2 border-[#2a1f5e]"
+                class="w-24 h-24 rounded-full overflow-hidden border-2 border-[var(--color-border-strong)]"
               >
                 <img :src="avatarSrc" alt="头像" class="w-full h-full object-cover" />
               </div>
@@ -184,7 +201,7 @@ function close() {
             >
               {{ isUploading ? '上传中...' : '上传头像' }}
             </button>
-            <p v-else class="text-[11px] text-[#718096] -mt-3">点击头像更换图片</p>
+            <p v-else class="text-[11px] text-[var(--color-text-muted)] -mt-3">点击头像更换图片</p>
 
             <!-- 删除头像按钮（有头像时显示） -->
             <button
@@ -198,36 +215,65 @@ function close() {
 
             <!-- 昵称 -->
             <div class="w-full flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">昵称</label>
+              <label class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">昵称</label>
               <input
                 v-model="nickname"
                 type="text"
                 placeholder="输入昵称"
                 maxlength="20"
-                class="w-full px-3.5 py-2.5 rounded-lg border border-[#2d3748] bg-[#17132b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
               />
             </div>
 
             <!-- 邮箱（只读） -->
             <div class="w-full flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">邮箱</label>
+              <label class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">邮箱</label>
               <input
                 :value="authStore.currentUser?.email ?? ''"
                 type="text"
                 disabled
-                class="w-full px-3.5 py-2.5 rounded-lg border border-[#2d3748] bg-[#0f0f23] text-[#718096] text-[15px] outline-none cursor-not-allowed"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-deepest)] text-[var(--color-text-muted)] text-[15px] outline-none cursor-not-allowed"
               />
             </div>
 
             <!-- 工号（只读） -->
             <div class="w-full flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">工号</label>
+              <label class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">工号</label>
               <input
                 :value="authStore.currentUser?.employee_id ?? ''"
                 type="text"
                 disabled
-                class="w-full px-3.5 py-2.5 rounded-lg border border-[#2d3748] bg-[#0f0f23] text-[#718096] text-[15px] outline-none cursor-not-allowed"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-deepest)] text-[var(--color-text-muted)] text-[15px] outline-none cursor-not-allowed"
               />
+            </div>
+
+            <!-- 主题切换 -->
+            <div class="w-full flex items-center justify-between">
+              <div class="flex flex-col gap-0.5">
+                <span class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">主题</span>
+                <span class="text-[11px] text-[var(--color-text-muted)]">{{ currentTheme === 'dark' ? '深色模式' : '浅色模式' }}</span>
+              </div>
+              <button
+                class="relative w-14 h-7 rounded-full transition-colors duration-250 cursor-pointer border-none outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                :class="currentTheme === 'dark' ? 'bg-[var(--color-border-default)]' : 'bg-[var(--color-border-strong)]'"
+                :disabled="themeChanging"
+                @click="toggleTheme"
+              >
+                <span
+                  class="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-250 flex items-center justify-center"
+                  :class="currentTheme === 'dark' ? 'translate-x-[28px]' : 'translate-x-[2px]'"
+                >
+                  <!-- 月亮图标（当前深色模式） -->
+                  <svg v-if="currentTheme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" class="w-4 h-4">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <!-- 太阳图标（当前浅色模式） -->
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" class="w-4 h-4">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke-linecap="round"/>
+                  </svg>
+                </span>
+              </button>
             </div>
 
             <!-- 保存按钮 -->

@@ -132,6 +132,27 @@ func UpdateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "更新成功", "data": u})
 }
 
+// UpdateTheme 更新当前用户主题偏好
+func UpdateTheme(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+
+	var req struct {
+		Theme string `json:"theme"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Theme != "dark" && req.Theme != "light") {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "theme 必须为 dark 或 light"})
+		return
+	}
+
+	u, err := userSvc.UpdateTheme(c.Request.Context(), userID.(string), req.Theme)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "主题已更新", "data": u})
+}
+
 // UploadAvatar 上传头像
 func UploadAvatar(c *gin.Context) {
 	userID, _ := c.Get("user_id")

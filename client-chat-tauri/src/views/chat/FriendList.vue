@@ -36,25 +36,25 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
 </script>
 
 <template>
-  <aside class="grid grid-rows-[auto_1fr_auto] h-full overflow-hidden bg-[#1e1935] border-r border-[#2a1f5e]">
+  <aside class="grid grid-rows-[auto_1fr_auto] h-full overflow-hidden bg-[var(--color-bg-elevated)] border-r border-[var(--color-border-strong)]">
     <!-- 搜索栏 + 加好友 -->
-    <div class="px-4 py-4 border-b border-[#2a1f5e]">
+    <div class="px-4 py-4 border-b border-[var(--color-border-strong)]">
       <div class="flex items-center gap-2">
         <div class="relative flex-1">
           <input
             v-model="searchText"
             type="text"
             placeholder="搜索好友..."
-            class="w-full pl-9 pr-3 py-2 rounded-lg border border-[#2d3748] bg-[#17132b] text-[#e2e8f0] text-[14px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+            class="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg)] text-[var(--color-text-primary)] text-[14px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             @keyup.enter="searchFriends"
           />
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4a5568] pointer-events-none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-disabled)] pointer-events-none">
             <circle cx="11" cy="11" r="8"/>
             <path d="m21 21-4.35-4.35"/>
           </svg>
         </div>
         <button
-          class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[#718096] hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer"
+          class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer"
           title="添加好友"
           @click="chatStore.showAddFriendDialog = true"
         >
@@ -72,10 +72,10 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
       <!-- 加载骨架屏 -->
       <template v-if="chatStore.isLoadingFriends || chatStore.isLoadingGroups">
         <div v-for="n in 5" :key="'skel_' + n" class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 animate-pulse">
-          <div class="w-10 h-10 rounded-full bg-[#2d3748] shrink-0"></div>
+          <div class="w-10 h-10 rounded-full bg-[var(--color-border-default)] shrink-0"></div>
           <div class="min-w-0 flex-1 space-y-1.5">
-            <div class="h-3 bg-[#2d3748] rounded w-24"></div>
-            <div class="h-2.5 bg-[#2d3748] rounded w-16"></div>
+            <div class="h-3 bg-[var(--color-border-default)] rounded w-24"></div>
+            <div class="h-2.5 bg-[var(--color-border-default)] rounded w-16"></div>
           </div>
         </div>
       </template>
@@ -83,7 +83,7 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
       <!-- ===== 群组列表 ===== -->
       <template v-if="chatStore.groups.length > 0 && !chatStore.isLoadingGroups">
         <div
-          class="px-2 pt-2 pb-1 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          class="px-2 pt-2 pb-1 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[var(--color-text-secondary)] transition-colors"
           @click="groupsCollapsed = !groupsCollapsed"
         >
           <span>群组 ({{ chatStore.groups.length }})</span>
@@ -99,18 +99,18 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
           <li
             v-for="group in chatStore.groups"
             :key="group.id"
-            class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 hover:bg-[#252050]"
-            :class="chatStore.activeGroupId === group.id ? 'bg-[#252050] text-[#e2e8f0]' : 'text-[#a0aec0]'"
+            class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 hover:bg-[var(--color-active-bg)]"
+            :class="chatStore.activeGroupId === group.id ? 'bg-[var(--color-active-bg)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'"
             @click="chatStore.setActiveGroup(group.id)"
           >
             <!-- 群组默认图标 -->
             <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
               :class="chatStore.activeGroupId === group.id
                 ? 'bg-gradient-to-br from-purple-400 to-pink-400'
-                : 'bg-[#2d284b]'"
+                : 'bg-[var(--color-hover-strong)]'"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-5 h-5"
-                :class="chatStore.activeGroupId === group.id ? 'text-white' : 'text-[#a0aec0]'">
+                :class="chatStore.activeGroupId === group.id ? 'text-white' : 'text-[var(--color-text-secondary)]'">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round" stroke-linejoin="round"/>
@@ -128,8 +128,8 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
                 </span>
               </div>
               <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-[11px] text-[#718096]">{{ group.member_count ?? 0 }} 人</span>
-                <span v-if="lastMessagePreview(group.last_message, group.last_message_type)" class="text-[12px] text-[#718096] truncate">
+                <span class="text-[11px] text-[var(--color-text-muted)]">{{ group.member_count ?? 0 }} 人</span>
+                <span v-if="lastMessagePreview(group.last_message, group.last_message_type)" class="text-[12px] text-[var(--color-text-muted)] truncate">
                   · {{ lastMessagePreview(group.last_message, group.last_message_type) }}
                 </span>
               </div>
@@ -137,7 +137,7 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
           </li>
         </ul>
         <div
-          class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          class="px-2 py-2 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[var(--color-text-secondary)] transition-colors"
           @click="friendsCollapsed = !friendsCollapsed"
         >
           <span>好友 · 在线 ({{ chatStore.onlineCount }})</span>
@@ -153,7 +153,7 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
 
       <template v-else>
         <div
-          class="px-2 py-2 text-xs font-semibold text-[#718096] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[#a0aec0] transition-colors"
+          class="px-2 py-2 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:text-[var(--color-text-secondary)] transition-colors"
           @click="friendsCollapsed = !friendsCollapsed"
         >
           <span>在线 ({{ chatStore.onlineCount }})</span>
@@ -172,8 +172,8 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
         <li
           v-for="friend in chatStore.friends"
           :key="friend.friend_id"
-          class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 hover:bg-[#252050]"
-          :class="chatStore.activeFriendId === friend.friend_id ? 'bg-[#252050] text-[#e2e8f0]' : 'text-[#a0aec0]'"
+          class="flex items-center gap-3 px-4 py-2.5 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors duration-150 hover:bg-[var(--color-active-bg)]"
+          :class="chatStore.activeFriendId === friend.friend_id ? 'bg-[var(--color-active-bg)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-secondary)]'"
           @click="chatStore.setActiveFriend(friend.friend_id)"
         >
           <Avatar
@@ -196,27 +196,27 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
             <!-- 最后一条消息预览 -->
             <div
               v-if="lastMessagePreview(friend.last_message, friend.last_message_type)"
-              class="text-[12px] text-[#718096] truncate mt-0.5"
-              :class="{ 'text-[#e2e8f0]': (friend.unread_count ?? 0) > 0 }"
+              class="text-[12px] text-[var(--color-text-muted)] truncate mt-0.5"
+              :class="{ 'text-[var(--color-text-primary)]': (friend.unread_count ?? 0) > 0 }"
             >
               {{ lastMessagePreview(friend.last_message, friend.last_message_type) }}
             </div>
-            <div v-else-if="friend.employee_id" class="text-[12px] text-[#718096] truncate">
+            <div v-else-if="friend.employee_id" class="text-[12px] text-[var(--color-text-muted)] truncate">
               {{ friend.employee_id }}
             </div>
           </div>
         </li>
       </ul>
-      <div v-if="chatStore.friends.length === 0 && chatStore.groups.length === 0 && !chatStore.isLoading && !chatStore.isLoadingGroups" class="text-center text-[13px] text-[#718096] py-8">
+      <div v-if="chatStore.friends.length === 0 && chatStore.groups.length === 0 && !chatStore.isLoading && !chatStore.isLoadingGroups" class="text-center text-[13px] text-[var(--color-text-muted)] py-8">
         暂无好友和群组
       </div>
-      <div v-else-if="chatStore.friends.length === 0 && !chatStore.isLoadingFriends" class="text-center text-[13px] text-[#718096] py-8">
+      <div v-else-if="chatStore.friends.length === 0 && !chatStore.isLoadingFriends" class="text-center text-[13px] text-[var(--color-text-muted)] py-8">
         暂无好友
       </div>
     </div>
 
     <!-- 底部当前用户 -->
-    <div class="flex items-center gap-3 px-4 h-[68px] bg-[#17132b] border-t border-[#2a1f5e]">
+    <div class="flex items-center gap-3 px-4 h-[68px] bg-[var(--color-bg-deeper)] border-t border-[var(--color-border-strong)]">
       <Avatar
         :name="authStore.currentUser?.nickname ?? ''"
         :avatar-url="authStore.currentUser?.avatar_url"
@@ -224,8 +224,8 @@ function lastMessagePreview(lastMessage?: string, lastMessageType?: string): str
         size="sm"
       />
       <div class="min-w-0">
-        <div class="text-[13px] font-medium truncate text-[#e2e8f0]">{{ authStore.currentUser?.nickname }}</div>
-        <div class="text-[11px] text-[#718096]">{{ authStore.currentUser?.employee_id }}</div>
+        <div class="text-[13px] font-medium truncate text-[var(--color-text-primary)]">{{ authStore.currentUser?.nickname }}</div>
+        <div class="text-[11px] text-[var(--color-text-muted)]">{{ authStore.currentUser?.employee_id }}</div>
       </div>
     </div>
   </aside>

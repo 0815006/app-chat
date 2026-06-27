@@ -197,15 +197,15 @@ onUnmounted(() => {
     <Transition name="panel">
       <div
         v-if="visible"
-        class="fixed right-0 top-0 bottom-0 z-50 w-[360px] bg-[#141028] border-l border-white/[0.06] shadow-[-8px_0_30px_rgba(0,0,0,0.4)] flex flex-col"
+        class="fixed right-0 top-0 bottom-0 z-50 w-[360px] bg-[var(--color-bg-dialog)] border-l border-[var(--color-border-subtle)] shadow-[-8px_0_30px_rgba(0,0,0,0.4)] flex flex-col"
         @keydown="onKeydown"
       >
         <!-- 标题栏 -->
         <div class="shrink-0 px-5 pt-5 pb-3">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-[15px] font-semibold text-white">群成员</h3>
-              <p v-if="chatStore.activeGroup" class="text-[12px] text-[#64748b] mt-0.5">
+              <h3 class="text-[15px] font-semibold text-[var(--color-text-heading)]">群成员</h3>
+              <p v-if="chatStore.activeGroup" class="text-[12px] text-[var(--color-text-dim)] mt-0.5">
                 {{ chatStore.activeGroup.name }}
                 <span v-if="chatStore.activeGroup.member_count">· {{ chatStore.activeGroup.member_count }} 人</span>
               </p>
@@ -213,7 +213,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-1.5">
               <!-- 邀请成员按钮（任何群成员均可邀请） -->
               <button
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-purple-400 hover:bg-purple-400/10 transition-all duration-200 cursor-pointer"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-purple-400 hover:bg-purple-400/10 transition-all duration-200 cursor-pointer"
                 :class="{ 'bg-purple-400/10 text-purple-400': showInviteSection }"
                 title="邀请成员"
                 @click="toggleInviteSection"
@@ -227,7 +227,7 @@ onUnmounted(() => {
               </button>
               <!-- 关闭按钮 -->
               <button
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] transition-all duration-200 cursor-pointer"
                 @click="close"
                 aria-label="关闭"
               >
@@ -250,7 +250,7 @@ onUnmounted(() => {
                 <line x1="20" y1="8" x2="20" y2="14" stroke-linecap="round"/>
                 <line x1="23" y1="11" x2="17" y2="11" stroke-linecap="round"/>
               </svg>
-              <span class="text-[13px] font-medium text-[#e2e8f0]">邀请新成员</span>
+              <span class="text-[13px] font-medium text-[var(--color-text-primary)]">邀请新成员</span>
             </div>
             <!-- 搜索框 -->
             <div class="relative mb-2">
@@ -258,7 +258,7 @@ onUnmounted(() => {
                 v-model="inviteKeyword"
                 type="text"
                 placeholder="搜索用户（至少 2 个字符）..."
-                class="w-full bg-[#0c0820] border border-white/[0.06] rounded-lg px-3 py-2 text-[13px] text-[#e2e8f0] placeholder-[#475569] focus:border-purple-400/40 focus:outline-none transition-all duration-200"
+                class="w-full bg-[var(--color-bg-dialog-deep)] border border-[var(--color-border-subtle)] rounded-lg px-3 py-2 text-[13px] text-[var(--color-text-primary)] placeholder-[var(--color-text-dim)] focus:border-purple-400/40 focus:outline-none transition-all duration-200"
                 @keydown.enter="searchInviteUsers"
                 @input="inviteSearched = false"
               />
@@ -276,17 +276,17 @@ onUnmounted(() => {
 
             <!-- 搜索结果 -->
             <div v-if="isSearchingInvite" class="flex items-center justify-center py-3">
-              <span class="w-3.5 h-3.5 border-2 border-[#718096]/30 border-t-purple-400 rounded-full animate-spin"></span>
-              <span class="text-[12px] text-[#64748b] ml-2">搜索中...</span>
+              <span class="w-3.5 h-3.5 border-2 border-[var(--color-text-muted)]/30 border-t-purple-400 rounded-full animate-spin"></span>
+              <span class="text-[12px] text-[var(--color-text-dim)] ml-2">搜索中...</span>
             </div>
             <div v-else-if="inviteSearched && inviteResults.length === 0" class="text-center py-3">
-              <span class="text-[12px] text-[#475569]">未找到可邀请的用户</span>
+              <span class="text-[12px] text-[var(--color-text-dim)]">未找到可邀请的用户</span>
             </div>
             <div v-else-if="inviteResults.length > 0" class="space-y-1 max-h-36 overflow-y-auto custom-scrollbar">
               <div
                 v-for="user in inviteResults"
                 :key="user.id"
-                class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors duration-150"
+                class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-hover-bg)] transition-colors duration-150"
               >
                 <Avatar
                   :name="user.nickname ?? '?'"
@@ -294,8 +294,8 @@ onUnmounted(() => {
                   size="sm"
                 />
                 <div class="flex-1 min-w-0">
-                  <div class="text-[12px] text-[#e2e8f0] truncate">{{ user.nickname ?? '未知用户' }}</div>
-                  <div class="text-[10px] text-[#475569] truncate">{{ user.employee_id || '' }}<template v-if="!user.employee_id">&nbsp;</template></div>
+                  <div class="text-[12px] text-[var(--color-text-primary)] truncate">{{ user.nickname ?? '未知用户' }}</div>
+                  <div class="text-[10px] text-[var(--color-text-dim)] truncate">{{ user.employee_id || '' }}<template v-if="!user.employee_id">&nbsp;</template></div>
                 </div>
                 <button
                   class="shrink-0 px-2.5 py-1 text-[11px] rounded-md bg-purple-400/10 border border-purple-400/20 text-purple-400 hover:bg-purple-400/20 hover:border-purple-400/35 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -316,8 +316,8 @@ onUnmounted(() => {
         <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-5 py-2">
           <!-- 加载中 -->
           <div v-if="isLoading" class="flex flex-col items-center justify-center py-12">
-            <span class="w-4 h-4 border-2 border-[#718096]/30 border-t-purple-400 rounded-full animate-spin mb-2.5"></span>
-            <span class="text-[12px] text-[#64748b]">加载成员列表...</span>
+            <span class="w-4 h-4 border-2 border-[var(--color-text-muted)]/30 border-t-purple-400 rounded-full animate-spin mb-2.5"></span>
+            <span class="text-[12px] text-[var(--color-text-dim)]">加载成员列表...</span>
           </div>
 
           <!-- 成员列表 -->
@@ -325,7 +325,7 @@ onUnmounted(() => {
             <div
               v-for="member in members"
               :key="member.user_id"
-              class="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-white/[0.04] transition-colors duration-150 group"
+              class="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-[var(--color-hover-bg)] transition-colors duration-150 group"
             >
               <Avatar
                 :name="member.nickname ?? '?'"
@@ -335,7 +335,7 @@ onUnmounted(() => {
               />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[14px] text-[#e2e8f0] truncate">{{ member.nickname ?? '未知用户' }}</span>
+                  <span class="text-[14px] text-[var(--color-text-primary)] truncate">{{ member.nickname ?? '未知用户' }}</span>
                   <!-- 群主标记 -->
                   <span
                     v-if="member.role === 'owner'"
@@ -346,12 +346,12 @@ onUnmounted(() => {
                   <!-- 自己标记 -->
                   <span
                     v-else-if="member.user_id === authStore.currentUser?.id"
-                    class="text-[10px] px-1.5 py-0.5 rounded-md bg-white/[0.03] border border-white/[0.05] text-[#64748b] shrink-0"
+                    class="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--color-hover-weak)] border border-[var(--color-border-subtle)] text-[var(--color-text-dim)] shrink-0"
                   >
                     我
                   </span>
                 </div>
-                <div class="text-[11px] text-[#475569] truncate">
+                <div class="text-[11px] text-[var(--color-text-dim)] truncate">
                   {{ member.employee_id || '' }}
                   <template v-if="!member.employee_id">&nbsp;</template>
                 </div>
@@ -361,13 +361,13 @@ onUnmounted(() => {
               <div class="flex items-center gap-2 shrink-0">
                 <span
                   class="w-2 h-2 rounded-full"
-                  :class="member.is_online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.4)]' : 'bg-[#334155]'"
+                  :class="member.is_online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.4)]' : 'bg-[var(--color-text-dim)]'"
                 ></span>
 
                 <!-- 群主可踢人（自己不能踢自己） -->
                 <button
                   v-if="isOwner() && member.user_id !== authStore.currentUser?.id"
-                  class="w-7 h-7 rounded-lg flex items-center justify-center text-[#475569] hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 opacity-0 group-hover:opacity-100 cursor-pointer"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 opacity-0 group-hover:opacity-100 cursor-pointer"
                   :disabled="isRemoving.has(member.user_id)"
                   @click.stop="kickMember(member)"
                   :title="'移出群聊'"
@@ -383,7 +383,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 底部操作 -->
-        <div class="shrink-0 px-5 py-4 border-t border-white/[0.04] space-y-2">
+        <div class="shrink-0 px-5 py-4 border-t border-[var(--color-border-subtle)] space-y-2">
           <!-- 群主：解散群 -->
           <button
             v-if="isOwner()"

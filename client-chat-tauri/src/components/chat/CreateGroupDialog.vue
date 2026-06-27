@@ -142,7 +142,7 @@ watch(
 
         <!-- 弹窗本体 -->
         <div
-          class="relative w-full max-w-[520px] rounded-2xl bg-[#141028] border border-white/[0.06] shadow-[0_25px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)] flex flex-col overflow-hidden"
+          class="relative w-full max-w-[520px] rounded-2xl bg-[var(--color-bg-dialog)] border border-[var(--color-border-subtle)] shadow-[0_25px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)] flex flex-col overflow-hidden"
           :class="step === 'select' ? 'min-h-[480px] max-h-[620px]' : 'min-h-[380px]'"
         >
           <!-- ========== 标题栏 ========== -->
@@ -158,17 +158,17 @@ watch(
                   </svg>
                 </div>
                 <div>
-                  <h2 class="text-[16px] font-semibold text-white">
+                  <h2 class="text-[16px] font-semibold text-[var(--color-text-heading)]">
                     {{ step === 'select' ? '创建群聊' : '设置群名称' }}
                   </h2>
-                  <p class="text-[12px] text-[#64748b] mt-0.5">
+                  <p class="text-[12px] text-[var(--color-text-dim)] mt-0.5">
                     <template v-if="step === 'select'">选择至少 2 位好友发起群聊</template>
                     <template v-else>为你的群聊取一个名字</template>
                   </p>
                 </div>
               </div>
               <button
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] transition-all duration-200 cursor-pointer"
                 @click="close"
                 aria-label="关闭"
               >
@@ -184,7 +184,7 @@ watch(
           <template v-if="step === 'select'">
             <!-- 已选标签 -->
             <div v-if="selectedCount > 0" class="shrink-0 px-6 pt-3 pb-1 flex flex-wrap items-center gap-1.5">
-              <span class="text-[11px] text-[#64748b] mr-1">已选 {{ selectedCount }} 人：</span>
+              <span class="text-[11px] text-[var(--color-text-dim)] mr-1">已选 {{ selectedCount }} 人：</span>
               <span
                 v-for="friend in selectedFriends.slice(0, 8)"
                 :key="friend.friend_id"
@@ -200,27 +200,27 @@ watch(
                   </svg>
                 </button>
               </span>
-              <span v-if="selectedCount > 8" class="text-[11px] text-[#475569]">+{{ selectedCount - 8 }}</span>
+              <span v-if="selectedCount > 8" class="text-[11px] text-[var(--color-text-dim)]">+{{ selectedCount - 8 }}</span>
             </div>
 
             <!-- 好友列表 -->
             <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-5 py-3">
               <!-- 加载中 -->
               <div v-if="chatStore.isLoadingFriends" class="flex flex-col items-center justify-center py-16">
-                <span class="w-5 h-5 border-2 border-[#718096]/30 border-t-purple-400 rounded-full animate-spin mb-3"></span>
-                <span class="text-[13px] text-[#64748b]">加载好友列表...</span>
+                <span class="w-5 h-5 border-2 border-[var(--color-text-muted)]/30 border-t-purple-400 rounded-full animate-spin mb-3"></span>
+                <span class="text-[13px] text-[var(--color-text-dim)]">加载好友列表...</span>
               </div>
 
               <!-- 空态 -->
               <div v-else-if="availableFriends.length === 0" class="flex flex-col items-center justify-center py-16">
-                <div class="w-14 h-14 rounded-2xl bg-white/[0.02] flex items-center justify-center mb-3">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-7 h-7 text-[#334155]">
+                <div class="w-14 h-14 rounded-2xl bg-[var(--color-hover-weak)] flex items-center justify-center mb-3">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-7 h-7 text-[var(--color-text-dim)]">
                     <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke-linecap="round" stroke-linejoin="round"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
-                <p class="text-[14px] text-[#64748b]">暂无好友</p>
-                <p class="text-[12px] text-[#475569] mt-1">请先添加好友后再创建群聊</p>
+                <p class="text-[14px] text-[var(--color-text-dim)]">暂无好友</p>
+                <p class="text-[12px] text-[var(--color-text-dim)] mt-1">请先添加好友后再创建群聊</p>
               </div>
 
               <!-- 好友列表 -->
@@ -231,7 +231,7 @@ watch(
                   class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer group"
                   :class="selectedIds.has(friend.friend_id)
                     ? 'bg-purple-400/10 border border-purple-400/25'
-                    : 'border border-transparent hover:bg-white/[0.04]'"
+                    : 'border border-transparent hover:bg-[var(--color-hover-bg)]'"
                   @click="toggleSelect(friend.friend_id)"
                 >
                   <!-- 复选框 -->
@@ -239,7 +239,7 @@ watch(
                     class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-all duration-200"
                     :class="selectedIds.has(friend.friend_id)
                       ? 'bg-purple-400 border-purple-400'
-                      : 'border-2 border-[#334155] group-hover:border-[#475569]'"
+                      : 'border-2 border-[var(--color-text-dim)] group-hover:border-[var(--color-text-dim)]'"
                   >
                     <svg v-if="selectedIds.has(friend.friend_id)" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" class="w-3 h-3">
                       <path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -253,13 +253,13 @@ watch(
                     size="sm"
                   />
                   <div class="flex-1 text-left min-w-0">
-                    <div class="text-[14px] text-[#e2e8f0] truncate">{{ friend.name }}</div>
-                    <div class="text-[11px] text-[#475569] truncate">{{ friend.employee_id || '' }}</div>
+                    <div class="text-[14px] text-[var(--color-text-primary)] truncate">{{ friend.name }}</div>
+                    <div class="text-[11px] text-[var(--color-text-dim)] truncate">{{ friend.employee_id || '' }}</div>
                   </div>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <span
                       class="w-2 h-2 rounded-full"
-                      :class="friend.online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.4)]' : 'bg-[#334155]'"
+                      :class="friend.online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.4)]' : 'bg-[var(--color-text-dim)]'"
                     ></span>
                   </div>
                 </button>
@@ -267,8 +267,8 @@ watch(
             </div>
 
             <!-- 底部操作栏 -->
-            <div class="shrink-0 px-6 py-4 border-t border-white/[0.04] flex items-center justify-between">
-              <span class="text-[12px] text-[#475569]">已选择 {{ selectedCount }} 位好友</span>
+            <div class="shrink-0 px-6 py-4 border-t border-[var(--color-border-subtle)] flex items-center justify-between">
+              <span class="text-[12px] text-[var(--color-text-dim)]">已选择 {{ selectedCount }} 位好友</span>
               <button
                 class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-400 to-pink-400 text-white text-[14px] font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_4px_16px_rgba(168,85,247,0.25)] transition-all duration-200 cursor-pointer"
                 :disabled="selectedCount === 0"
@@ -284,7 +284,7 @@ watch(
             <div class="flex-1 px-6 py-5 space-y-4">
               <!-- 已选成员预览（创建者 + 选中好友） -->
               <div>
-                <label class="text-[12px] text-[#64748b] mb-2 block">群成员 ({{ selectedCount + 1 }} 人)</label>
+                <label class="text-[12px] text-[var(--color-text-dim)] mb-2 block">群成员 ({{ selectedCount + 1 }} 人)</label>
                 <div class="flex flex-wrap gap-1.5">
                   <!-- 创建者自己 -->
                   <div
@@ -302,38 +302,38 @@ watch(
                   <div
                     v-for="friend in selectedFriends"
                     :key="friend.friend_id"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--color-hover-weak)] border border-[var(--color-border-subtle)]"
                   >
                     <Avatar :name="friend.name" :avatar-url="friend.avatar_url" size="sm" />
-                    <span class="text-[13px] text-[#e2e8f0]">{{ friend.name }}</span>
+                    <span class="text-[13px] text-[var(--color-text-primary)]">{{ friend.name }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- 群名称输入 -->
               <div>
-                <label class="text-[12px] text-[#64748b] mb-2 block">群聊名称</label>
+                <label class="text-[12px] text-[var(--color-text-dim)] mb-2 block">群聊名称</label>
                 <div class="relative group">
                   <div class="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-400/20 to-pink-400/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -m-[1px]"></div>
-                  <div class="relative bg-[#0f0b24] rounded-xl border border-white/[0.06] group-focus-within:border-purple-400/30 transition-colors duration-300">
+                  <div class="relative bg-[var(--color-bg-dialog-input)] rounded-xl border border-[var(--color-border-subtle)] group-focus-within:border-purple-400/30 transition-colors duration-300">
                     <input
                       v-model="groupName"
                       type="text"
                       placeholder="输入群聊名称..."
                       maxlength="20"
-                      class="w-full px-4 py-3 bg-transparent text-white text-[14px] outline-none placeholder:text-[#475569]"
+                      class="w-full px-4 py-3 bg-transparent text-[var(--color-text-heading)] text-[14px] outline-none placeholder:text-[var(--color-text-dim)]"
                       @keyup.enter="handleCreate"
                     />
                   </div>
                 </div>
-                <p class="text-[11px] text-[#475569] mt-1.5">{{ groupName.length }}/20 个字符</p>
+                <p class="text-[11px] text-[var(--color-text-dim)] mt-1.5">{{ groupName.length }}/20 个字符</p>
               </div>
             </div>
 
             <!-- 底部操作栏 -->
-            <div class="shrink-0 px-6 py-4 border-t border-white/[0.04] flex items-center justify-between">
+            <div class="shrink-0 px-6 py-4 border-t border-[var(--color-border-subtle)] flex items-center justify-between">
               <button
-                class="px-4 py-2.5 rounded-xl bg-white/[0.04] text-[#64748b] text-[14px] hover:text-white hover:bg-white/[0.08] transition-all duration-200 cursor-pointer"
+                class="px-4 py-2.5 rounded-xl bg-[var(--color-hover-bg)] text-[var(--color-text-dim)] text-[14px] hover:text-white hover:bg-[var(--color-hover-strong)] transition-all duration-200 cursor-pointer"
                 @click="goBack"
               >
                 返回选择

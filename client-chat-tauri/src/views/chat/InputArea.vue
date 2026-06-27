@@ -85,19 +85,19 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
 <template>
   <div
     v-if="chatStore.activeFriendId || chatStore.activeGroupId"
-    class="col-start-3 px-5 py-3 bg-[#1e1935] border-t border-[#2d3748] flex items-center gap-3"
+    class="col-start-3 px-5 py-3 bg-[var(--color-bg-elevated)] border-t border-[var(--color-border-default)] flex items-center gap-3"
     @dragover.prevent
     @drop.prevent="onDrop"
   >
     <!-- 文件上传按钮 -->
     <button
-      class="w-10 h-10 rounded-xl border border-[#2d3748] bg-[#17132b] text-[#718096] cursor-pointer flex items-center justify-center shrink-0 transition-all duration-200 hover:border-blue-400 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
+      class="w-10 h-10 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-input-bg)] text-[var(--color-text-muted)] cursor-pointer flex items-center justify-center shrink-0 transition-all duration-200 hover:border-blue-400 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
       title="发送文件 / 图片"
       :disabled="isUploading"
       @click="onUploadClick"
     >
       <!-- 上传中显示 spinner -->
-      <span v-if="isUploading" class="w-4 h-4 border-2 border-[#718096]/30 border-t-blue-400 rounded-full animate-spin"></span>
+      <span v-if="isUploading" class="w-4 h-4 border-2 border-[var(--color-text-muted)]/30 border-t-blue-400 rounded-full animate-spin"></span>
       <!-- 默认显示 ➕ -->
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
         <path d="M12 5v14M5 12h14" stroke-linecap="round" />
@@ -120,7 +120,7 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
       type="text"
       placeholder="输入消息...（可直接拖拽文件到此处）"
       maxlength="5000"
-      class="flex-1 px-4 py-2.5 rounded-xl border border-[#2d3748] bg-[#17132b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+      class="flex-1 px-4 py-2.5 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-input-bg)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_2px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
       :disabled="isUploading"
       @keyup.enter="sendTextMessage"
     />

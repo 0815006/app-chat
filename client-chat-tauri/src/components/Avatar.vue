@@ -79,6 +79,6 @@ const sizeMap: Record<string, { container: string; font: string }> = {
   height: 10px;
   border-radius: 50%;
   background: #48bb78;
-  border: 2px solid #162230;
+  border: 2px solid var(--color-bg-elevated);
 }
 </style>

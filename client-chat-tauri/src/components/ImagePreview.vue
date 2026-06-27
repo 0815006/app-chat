@@ -31,11 +31,11 @@ function onOverlayClick(e: MouseEvent) {
   <Teleport to="body">
     <div
       v-if="isVisible"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)]/80 backdrop-blur-sm"
       @click="onOverlayClick"
     >
       <button
-        class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+        class="absolute top-4 right-4 w-10 h-10 rounded-full bg-[var(--color-hover-bg)]/50 hover:bg-[var(--color-hover-strong)]/50 flex items-center justify-center text-[var(--color-text-heading)] transition-colors cursor-pointer"
         @click="close"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">

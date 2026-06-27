@@ -130,6 +130,17 @@ func (s *UserService) DeleteAvatar(ctx context.Context, userID string) (*model.U
 	return s.GetByID(ctx, userID)
 }
 
+// UpdateTheme 更新用户主题偏好
+func (s *UserService) UpdateTheme(ctx context.Context, userID, theme string) (*model.User, error) {
+	if theme != "dark" && theme != "light" {
+		return nil, fmt.Errorf("无效的主题值: %s (仅支持 dark 或 light)", theme)
+	}
+	if err := global.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Update("theme", theme).Error; err != nil {
+		return nil, fmt.Errorf("更新主题失败: %w", err)
+	}
+	return s.GetByID(ctx, userID)
+}
+
 // SearchUsers 搜索用户（按昵称或工号模糊搜索）
 func (s *UserService) SearchUsers(ctx context.Context, query string, limit int) ([]model.User, error) {
 	if limit <= 0 || limit > 50 {

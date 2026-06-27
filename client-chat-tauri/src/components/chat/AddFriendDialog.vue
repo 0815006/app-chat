@@ -154,7 +154,7 @@ watch(
 
         <!-- 弹窗本体 — 加宽以容纳卡片网格 -->
         <div
-          class="relative w-full max-w-[720px] min-h-[540px] max-h-[680px] rounded-2xl bg-[#141028] border border-white/[0.06] shadow-[0_25px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)] flex flex-col overflow-hidden"
+          class="relative w-full max-w-[720px] min-h-[540px] max-h-[680px] rounded-2xl bg-[var(--color-bg-dialog)] border border-[var(--color-border-subtle)] shadow-[0_25px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.03)] flex flex-col overflow-hidden"
         >
           <!-- ========== 标题栏 ========== -->
           <div class="relative shrink-0 px-6 pt-6 pb-0">
@@ -169,12 +169,12 @@ watch(
                   </svg>
                 </div>
                 <div>
-                  <h2 class="text-[16px] font-semibold text-white">添加好友</h2>
-                  <p class="text-[12px] text-[#64748b] mt-0.5">通过昵称或工号搜索用户</p>
+                  <h2 class="text-[16px] font-semibold text-[var(--color-text-heading)]">添加好友</h2>
+                  <p class="text-[12px] text-[var(--color-text-dim)] mt-0.5">通过昵称或工号搜索用户</p>
                 </div>
               </div>
               <button
-                class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+                class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] transition-all duration-200 cursor-pointer"
                 @click="close"
                 aria-label="关闭"
               >
@@ -192,11 +192,11 @@ watch(
             <!-- 搜索框 -->
             <div class="relative group">
               <div class="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/20 to-green-400/20 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -m-[1px]"></div>
-              <div class="relative flex items-center bg-[#0f0b24] rounded-xl border border-white/[0.06] group-focus-within:border-blue-400/30 transition-colors duration-300">
+              <div class="relative flex items-center bg-[var(--color-bg-dialog-input)] rounded-xl border border-[var(--color-border-subtle)] group-focus-within:border-blue-400/30 transition-colors duration-300">
                 <!-- 搜索图标 -->
                 <svg
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  class="absolute left-3.5 w-4 h-4 text-[#475569] group-focus-within:text-blue-400 transition-colors duration-300 pointer-events-none"
+                  class="absolute left-3.5 w-4 h-4 text-[var(--color-text-dim)] group-focus-within:text-blue-400 transition-colors duration-300 pointer-events-none"
                 >
                   <circle cx="11" cy="11" r="8"/>
                   <path d="m21 21-4.35-4.35"/>
@@ -206,7 +206,7 @@ watch(
                   v-model="keyword"
                   type="text"
                   placeholder="搜索昵称或工号..."
-                  class="w-full pl-10 pr-20 py-3 bg-transparent text-white text-[14px] outline-none placeholder:text-[#475569]"
+                  class="w-full pl-10 pr-20 py-3 bg-transparent text-[var(--color-text-heading)] text-[14px] outline-none placeholder:text-[var(--color-text-dim)]"
                   @keyup.enter="doSearch"
                   @input="searched = false; isBrowsingAll = false"
                 />
@@ -214,7 +214,7 @@ watch(
                 <div class="absolute right-2 flex items-center gap-1">
                   <button
                     v-if="keyword"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] transition-colors cursor-pointer"
                     @click="keyword = ''; searched = false; inputRef?.focus()"
                     aria-label="清除"
                   >
@@ -236,14 +236,14 @@ watch(
             <!-- 排序 + 浏览全部 -->
             <div class="flex items-center justify-between gap-3">
               <!-- 排序标签 -->
-              <div class="flex items-center gap-1.5 p-0.5 rounded-lg bg-white/[0.03]">
+              <div class="flex items-center gap-1.5 p-0.5 rounded-lg bg-[var(--color-hover-weak)]">
                 <button
                   v-for="opt in sortOptions"
                   :key="opt.value"
                   class="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 cursor-pointer"
                   :class="sortField === opt.value
                     ? 'bg-blue-500/20 text-blue-400'
-                    : 'text-[#475569] hover:text-[#94a3b8]'"
+                    : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-secondary)]'"
                   @click="onChangeSort(opt.value)"
                 >
                   按{{ opt.label }}
@@ -252,7 +252,7 @@ watch(
 
               <!-- 查看全部按钮 -->
               <button
-                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-[#94a3b8] hover:text-white hover:bg-white/[0.05] transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-[var(--color-text-secondary)] hover:text-white hover:bg-[var(--color-hover-bg)] transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="isSearching"
                 @click="browseAllUsers"
               >
@@ -274,10 +274,10 @@ watch(
                 v-for="i in 10" :key="i"
                 class="skeleton-card animate-pulse"
               >
-                <div class="w-10 h-10 rounded-full bg-white/[0.04] shrink-0"></div>
+                <div class="w-10 h-10 rounded-full bg-[var(--color-hover-bg)] shrink-0"></div>
                 <div class="flex-1 ml-2 space-y-1.5">
-                  <div class="h-2.5 w-16 rounded-full bg-white/[0.04]"></div>
-                  <div class="h-2 w-12 rounded-full bg-white/[0.03]"></div>
+                  <div class="h-2.5 w-16 rounded-full bg-[var(--color-hover-bg)]"></div>
+                  <div class="h-2 w-12 rounded-full bg-[var(--color-hover-weak)]"></div>
                 </div>
               </div>
             </div>
@@ -285,12 +285,12 @@ watch(
             <!-- 结果网格 -->
             <template v-else-if="results.length > 0">
               <!-- 结果计数 -->
-              <div class="sticky top-0 z-10 -mx-5 px-5 py-2.5 bg-[#141028]/95 backdrop-blur-sm">
+              <div class="sticky top-0 z-10 -mx-5 px-5 py-2.5 bg-[var(--color-bg-dialog)]/95 backdrop-blur-sm">
                 <div class="flex items-center gap-2 text-[12px]">
-                  <span class="font-medium text-[#94a3b8]">
+                  <span class="font-medium text-[var(--color-text-secondary)]">
                     {{ isBrowsingAll ? '全部用户' : '搜索结果' }}
                   </span>
-                  <span class="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[#64748b] font-medium tabular-nums">
+                  <span class="px-1.5 py-0.5 rounded-md bg-[var(--color-hover-bg)] text-[var(--color-text-dim)] font-medium tabular-nums">
                     {{ results.length }}
                   </span>
                 </div>
@@ -321,15 +321,15 @@ watch(
                     </div>
                     <!-- 在线状态点 -->
                     <span
-                      class="absolute bottom-px right-px w-2.5 h-2.5 rounded-full ring-2 ring-[#141028]"
-                      :class="user.status === 'online' ? 'bg-green-400' : 'bg-[#334155]'"
+                      class="absolute bottom-px right-px w-2.5 h-2.5 rounded-full ring-2 ring-[var(--color-bg-dialog)]"
+                      :class="user.status === 'online' ? 'bg-green-400' : 'bg-[var(--color-text-dim)]'"
                     ></span>
                   </div>
 
                   <!-- 用户信息 -->
                   <div class="flex-1 min-w-0 ml-2">
-                    <div class="text-[11px] font-medium text-white truncate">{{ user.nickname }}</div>
-                    <div class="text-[10px] text-[#475569] truncate mt-px">{{ user.employee_id || '未设置工号' }}</div>
+                    <div class="text-[11px] font-medium text-[var(--color-text-heading)] truncate">{{ user.nickname }}</div>
+                    <div class="text-[10px] text-[var(--color-text-dim)] truncate mt-px">{{ user.employee_id || '未设置工号' }}</div>
                   </div>
 
                   <!-- 操作按钮 -->
@@ -347,7 +347,7 @@ watch(
                     <!-- 添加按钮 -->
                     <button
                       v-else
-                      class="w-4 h-4 rounded-full flex items-center justify-center bg-white/[0.04] text-[#64748b] hover:bg-blue-500 hover:text-white active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/[0.04] disabled:hover:text-[#64748b] disabled:active:scale-100"
+                      class="w-4 h-4 rounded-full flex items-center justify-center bg-[var(--color-hover-bg)] text-[var(--color-text-dim)] hover:bg-blue-500 hover:text-white active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-hover-bg)] disabled:hover:text-[var(--color-text-dim)] disabled:active:scale-100"
                       :disabled="addingIds.has(user.id)"
                       @click.stop="handleAdd(user)"
                     >
@@ -367,16 +367,16 @@ watch(
               v-else-if="searched && !isSearching"
               class="flex flex-col items-center justify-center py-20"
             >
-              <div class="w-16 h-16 rounded-2xl bg-white/[0.02] flex items-center justify-center mb-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[#334155]">
+              <div class="w-16 h-16 rounded-2xl bg-[var(--color-hover-weak)] flex items-center justify-center mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[var(--color-text-dim)]">
                   <circle cx="11" cy="11" r="8"/>
                   <path d="m21 21-4.35-4.35"/>
                   <line x1="8" y1="8" x2="14" y2="14" stroke-linecap="round"/>
                   <line x1="14" y1="8" x2="8" y2="14" stroke-linecap="round"/>
                 </svg>
               </div>
-              <p class="text-[14px] font-medium text-[#64748b] mb-1">未找到相关用户</p>
-              <p class="text-[12px] text-[#475569]">尝试其他昵称或工号关键词</p>
+              <p class="text-[14px] font-medium text-[var(--color-text-dim)] mb-1">未找到相关用户</p>
+              <p class="text-[12px] text-[var(--color-text-dim)]">尝试其他昵称或工号关键词</p>
             </div>
 
             <!-- 初始状态 -->
@@ -384,15 +384,15 @@ watch(
               v-else
               class="flex flex-col items-center justify-center py-20"
             >
-              <div class="w-16 h-16 rounded-2xl bg-white/[0.02] flex items-center justify-center mb-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[#334155]">
+              <div class="w-16 h-16 rounded-2xl bg-[var(--color-hover-weak)] flex items-center justify-center mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="w-8 h-8 text-[var(--color-text-dim)]">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
                   <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </div>
-              <p class="text-[14px] font-medium text-[#64748b] mb-1">添加新的好友</p>
-              <p class="text-[12px] text-[#475569] text-center leading-relaxed max-w-[260px]">
+              <p class="text-[14px] font-medium text-[var(--color-text-dim)] mb-1">添加新的好友</p>
+              <p class="text-[12px] text-[var(--color-text-dim)] text-center leading-relaxed max-w-[260px]">
                 输入昵称或工号搜索用户，<br/>或点击「查看全部用户」浏览所有注册用户
               </p>
             </div>

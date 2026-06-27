@@ -92,7 +92,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-dvh w-full flex flex-col overflow-hidden bg-[#1a1a2e]">
+  <div class="h-dvh w-full flex flex-col overflow-hidden bg-[var(--color-bg-default)]">
     <!-- 自定义标题栏 -->
     <TitleBar />
 

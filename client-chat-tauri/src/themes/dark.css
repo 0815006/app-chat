@@ -1,0 +1,41 @@
+/* 深色主题（默认），所有 --color-* token 在此定义 */
+:root {
+  /* 背景色 4 级 */
+  --color-bg-deepest: #0f0f23;
+  --color-bg-deeper: #17132b;
+  --color-bg-default: #1a1a2e;
+  --color-bg-elevated: #1e1935;
+
+  /* 弹窗专属背景 */
+  --color-bg-dialog: #141028;
+  --color-bg-dialog-input: #0f0b24;
+  --color-bg-dialog-deep: #0c0820;
+
+  /* 文字色 6 级 */
+  --color-text-primary: #e2e8f0;
+  --color-text-heading: #ffffff;
+  --color-text-secondary: #a0aec0;
+  --color-text-muted: #718096;
+  --color-text-disabled: #4a5568;
+  --color-text-dim: #475569;
+
+  /* 边框色 3 级 */
+  --color-border-default: #2d3748;
+  --color-border-strong: #2a1f5e;
+  --color-border-subtle: rgb(255 255 255 / 0.06);
+
+  /* 交互/叠加色（深色用 white 透明度） */
+  --color-hover-bg: rgb(255 255 255 / 0.04);
+  --color-hover-strong: rgb(255 255 255 / 0.06);
+  --color-hover-weak: rgb(255 255 255 / 0.02);
+  --color-active-bg: #252050;
+  --color-overlay: rgb(0 0 0 / 0.50);
+  --color-overlay-light: rgb(0 0 0 / 0.30);
+
+  /* 输入框 */
+  --color-input-bg: #17132b;
+  --color-input-bg-alt: #1e293b;
+
+  /* 滚动条 */
+  --color-scrollbar-thumb: #2d3748;
+}

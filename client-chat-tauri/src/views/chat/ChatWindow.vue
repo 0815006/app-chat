@@ -504,9 +504,9 @@ function getSenderAvatar(msg: Message): string | undefined {
 <template>
 <div class="contents">
   <!-- 有活跃聊天时（好友或群组） -->
-  <main v-if="chatStore.activeChat" class="flex flex-col overflow-hidden bg-[#1a1a2e]">
+  <main v-if="chatStore.activeChat" class="flex flex-col overflow-hidden bg-[var(--color-bg-default)]">
     <!-- 顶栏 -->
-    <header class="flex items-center justify-between px-5 py-3.5 border-b border-[#2d3748] bg-[#1e1935] shrink-0">
+    <header class="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] shrink-0">
       <!-- 群组顶栏 -->
       <template v-if="chatStore.activeGroup">
         <div class="flex items-center gap-3">
@@ -526,7 +526,7 @@ function getSenderAvatar(msg: Message): string | undefined {
                   ref="editingGroupNameInput"
                   v-model="editingGroupNameValue"
                   type="text"
-                  class="bg-[#0c0820] border border-purple-400/40 rounded-md px-2 py-0.5 text-[15px] font-semibold text-[#e2e8f0] focus:outline-none focus:border-purple-400 w-48"
+                  class="bg-[var(--color-bg-dialog-deep)] border border-purple-400/40 rounded-md px-2 py-0.5 text-[15px] font-semibold text-[var(--color-text-primary)] focus:outline-none focus:border-purple-400 w-48"
                   maxlength="30"
                   @keydown.enter="saveGroupName"
                   @keydown.escape="cancelEditGroupName"
@@ -544,7 +544,7 @@ function getSenderAvatar(msg: Message): string | undefined {
                   </svg>
                 </button>
                 <button
-                  class="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] cursor-pointer"
+                  class="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] cursor-pointer"
                   @mousedown.prevent="cancelEditGroupName"
                   title="取消"
                 >
@@ -555,19 +555,19 @@ function getSenderAvatar(msg: Message): string | undefined {
               </template>
               <template v-else>
                 <span
-                  class="text-[15px] font-semibold text-[#e2e8f0] truncate cursor-pointer hover:text-purple-400 transition-colors duration-150"
+                  class="text-[15px] font-semibold text-[var(--color-text-primary)] truncate cursor-pointer hover:text-purple-400 transition-colors duration-150"
                   title="双击修改群名"
                   @dblclick.stop="startEditGroupName"
                 >{{ chatStore.activeGroup.name }}</span>
-                <span class="text-[10px] text-[#475569] opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0">✎</span>
+                <span class="text-[10px] text-[var(--color-text-dim)] opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0">✎</span>
               </template>
             </div>
-            <div class="text-[12px] text-[#718096]">{{ chatStore.activeGroup.member_count ?? 0 }} 名成员</div>
+            <div class="text-[12px] text-[var(--color-text-muted)]">{{ chatStore.activeGroup.member_count ?? 0 }} 名成员</div>
           </div>
         </div>
         <!-- 群设置按钮（显示成员面板） -->
         <button
-          class="w-8 h-8 rounded-lg flex items-center justify-center text-[#475569] hover:text-white hover:bg-white/[0.06] transition-all duration-200 cursor-pointer"
+          class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-dim)] hover:text-white hover:bg-[var(--color-hover-strong)] transition-all duration-200 cursor-pointer"
           title="群成员"
           @click="chatStore.showGroupMembersPanel = true"
         >
@@ -589,8 +589,8 @@ function getSenderAvatar(msg: Message): string | undefined {
             size="sm"
           />
           <div>
-            <div class="text-[15px] font-semibold text-[#e2e8f0]">{{ chatStore.activeFriend?.name }}</div>
-            <div class="text-[12px] text-[#718096]">
+            <div class="text-[15px] font-semibold text-[var(--color-text-primary)]">{{ chatStore.activeFriend?.name }}</div>
+            <div class="text-[12px] text-[var(--color-text-muted)]">
               <template v-if="chatStore.activeFriend?.online">在线</template>
               <template v-else>离线 {{ chatStore.activeFriend?.last_message_at ? '· ' + new Date(chatStore.activeFriend.last_message_at).toLocaleString('zh-CN') : '' }}</template>
             </div>
@@ -608,21 +608,21 @@ function getSenderAvatar(msg: Message): string | undefined {
       <!-- 顶部加载更多指示器 -->
       <div
         v-if="chatStore.isLoadingMore"
-        class="flex items-center justify-center py-3 text-[#718096] text-xs"
+        class="flex items-center justify-center py-3 text-[var(--color-text-muted)] text-xs"
       >
-        <span class="w-3.5 h-3.5 border-2 border-[#718096]/30 border-t-[#718096] rounded-full animate-spin mr-2"></span>
+        <span class="w-3.5 h-3.5 border-2 border-[var(--color-text-muted)]/30 border-t-[var(--color-text-muted)] rounded-full animate-spin mr-2"></span>
         加载历史消息...
       </div>
       <div
         v-else-if="!chatStore.hasMore && chatStore.messages.length >= 20"
         class="flex items-center justify-center py-3"
       >
-        <span class="text-[11px] text-[#4a5568]">没有更多消息了</span>
+        <span class="text-[11px] text-[var(--color-text-disabled)]">没有更多消息了</span>
       </div>
 
       <!-- 加载态 -->
-      <div v-if="chatStore.isLoading" class="flex items-center justify-center py-12 text-[#718096] text-sm">
-        <span class="w-4 h-4 border-2 border-[#718096]/30 border-t-[#718096] rounded-full animate-spin mr-2"></span>
+      <div v-if="chatStore.isLoading" class="flex items-center justify-center py-12 text-[var(--color-text-muted)] text-sm">
+        <span class="w-4 h-4 border-2 border-[var(--color-text-muted)]/30 border-t-[var(--color-text-muted)] rounded-full animate-spin mr-2"></span>
         加载消息中...
       </div>
 
@@ -633,7 +633,7 @@ function getSenderAvatar(msg: Message): string | undefined {
           :key="'sep_' + item.time.getTime()"
           class="flex items-center justify-center my-3"
         >
-          <div class="bg-[#ffffff0d] text-[#718096] text-[11px] px-3 py-1 rounded-full">
+          <div class="bg-[var(--color-hover-weak)] text-[var(--color-text-muted)] text-[11px] px-3 py-1 rounded-full">
             {{ formatSeparatorTime(item.time) }}
           </div>
         </div>
@@ -657,17 +657,17 @@ function getSenderAvatar(msg: Message): string | undefined {
             <!-- 群聊中他人消息显示发送者名称 -->
             <div
               v-if="chatStore.activeGroup && item.sender_id !== authStore.currentUser?.id"
-              class="text-[11px] text-[#718096] mb-1 ml-1"
+              class="text-[11px] text-[var(--color-text-muted)] mb-1 ml-1"
             >
               {{ getSenderName(item) }}
             </div>
             <div
               class="rounded-2xl overflow-hidden"
               :class="item.is_revoked
-                ? 'bg-[#ffffff08] border border-[#ffffff0d] text-[#56657a] italic rounded-br-md'
+                ? 'bg-[var(--color-hover-weak)] border border-[var(--color-border-subtle)] text-[var(--color-text-dim)] italic rounded-br-md'
                 : item.sender_id === authStore.currentUser?.id
                   ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
-                  : 'bg-[#1e293b] text-[#e2e8f0] rounded-bl-md'"
+                  : 'bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] rounded-bl-md'"
             >
               <!-- 已撤回（仅发送者可见此标记；接收者的消息在 store 中通过 splice 移除，不会渲染到这里） -->
               <p v-if="item.is_revoked" class="px-4 py-2.5 text-[13px] flex items-center gap-2">
@@ -704,10 +704,10 @@ function getSenderAvatar(msg: Message): string | undefined {
                 <!-- 图标区域 -->
                 <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
                   :class="getFileDownloadState(item.id) === 'downloading'
-                    ? 'bg-white/10'
+                    ? 'bg-[var(--color-hover-bg)]'
                     : getFileDownloadState(item.id) === 'downloaded'
                       ? 'bg-green-500/20 text-green-400'
-                      : 'bg-white/15'"
+                      : 'bg-[var(--color-hover-strong)]'"
                 >
                   <!-- 下载中：spinner -->
                   <svg v-if="getFileDownloadState(item.id) === 'downloading'" class="w-5 h-5 animate-spin text-white/70" viewBox="0 0 24 24" fill="none">
@@ -742,7 +742,7 @@ function getSenderAvatar(msg: Message): string | undefined {
               <!-- 降级 -->
               <p v-else class="px-4 py-2.5 text-[14px] leading-relaxed break-words">{{ item.content }}</p>
             </div>
-            <div class="text-[10px] text-[#718096] mt-1" :class="item.sender_id === authStore.currentUser?.id ? 'text-right' : 'text-left'">
+            <div class="text-[10px] text-[var(--color-text-muted)] mt-1" :class="item.sender_id === authStore.currentUser?.id ? 'text-right' : 'text-left'">
               {{ new Date(item.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
             </div>
           </div>
@@ -752,15 +752,15 @@ function getSenderAvatar(msg: Message): string | undefined {
   </main>
 
   <!-- 未选择好友 -->
-  <main v-else class="flex items-center justify-center overflow-hidden bg-[#1a1a2e]">
+  <main v-else class="flex items-center justify-center overflow-hidden bg-[var(--color-bg-default)]">
     <div class="text-center">
       <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-400 to-green-400 shadow-[0_8px_32px_rgba(66,153,225,0.15)] mb-4">
         <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" class="w-12 h-12">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <h3 class="text-xl font-semibold text-[#e2e8f0] mb-1">欢迎使用 Chat</h3>
-      <p class="text-sm text-[#718096]">从左侧选择一个好友开始聊天</p>
+      <h3 class="text-xl font-semibold text-[var(--color-text-primary)] mb-1">欢迎使用 Chat</h3>
+      <p class="text-sm text-[var(--color-text-muted)]">从左侧选择一个好友开始聊天</p>
     </div>
   </main>
 
@@ -774,13 +774,13 @@ function getSenderAvatar(msg: Message): string | undefined {
     >
       <!-- 菜单面板 -->
       <div
-        class="absolute min-w-[160px] bg-[#1e1e2e] border border-[#2d3748] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.45)] py-1.5 backdrop-blur-sm"
+        class="absolute min-w-[160px] bg-[var(--color-bg-dialog)] border border-[var(--color-border-default)] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.45)] py-1.5 backdrop-blur-sm"
         :style="contextMenuStyle"
         @click.stop
       >
         <template v-for="(menuItem, idx) in contextMenuItems">
           <!-- 分割线 -->
-          <div v-if="menuItem.divider" :key="'div-' + idx" class="my-1 border-t border-[#ffffff0d]"></div>
+          <div v-if="menuItem.divider" :key="'div-' + idx" class="my-1 border-t border-[var(--color-border-subtle)]"></div>
           <!-- 菜单项 -->
           <button
             v-else
@@ -788,7 +788,7 @@ function getSenderAvatar(msg: Message): string | undefined {
             class="w-full text-left px-3.5 py-2 text-[13px] transition-colors duration-100 flex items-center gap-2.5"
             :class="menuItem.danger
               ? 'text-red-400 hover:bg-red-500/10'
-              : 'text-[#cbd5e0] hover:bg-[#ffffff0a]'"
+              : 'text-[var(--color-text-primary)] hover:bg-[var(--color-hover-bg)]'"
             @click="handleContextMenuAction(menuItem.action)"
           >
             <!-- 图标 -->

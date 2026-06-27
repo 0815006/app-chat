@@ -60,6 +60,7 @@ func InitRouter(cfg *config.Config) *gin.Engine {
 		// -- 个人资料 --
 		auth.GET("/me", api.GetMe)
 		auth.PUT("/me", api.UpdateMe)
+		auth.PUT("/me/theme", api.UpdateTheme)
 		auth.POST("/me/avatar", api.UploadAvatar)
 		auth.DELETE("/me/avatar", api.DeleteAvatar)
 

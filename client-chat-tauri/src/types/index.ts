@@ -16,6 +16,8 @@ export interface User {
   email?: string
   /** 注册时间 (ISO string) */
   created_at?: string
+  /** 主题偏好，默认 dark */
+  theme?: 'dark' | 'light'
 }
 
 /** 聊天消息 */
@@ -239,4 +241,6 @@ export interface IChatService {
   subscribeToGroupMembers(callback: (event: { groupId: string; userId: string }) => void): () => void
   /** 订阅 groups 表 UPDATE 事件（群名修改时所有成员实时同步） */
   subscribeToGroupUpdates(callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void
+  /** 更新用户主题偏好，返回更新后的完整 User */
+  updateTheme(theme: 'dark' | 'light'): Promise<User>
 }

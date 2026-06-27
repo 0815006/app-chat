@@ -32,7 +32,7 @@ async function close() {
 
 <template>
   <div
-    class="h-8 flex items-center justify-between select-none bg-[#0f0f23] shrink-0"
+    class="h-8 flex items-center justify-between select-none bg-[var(--color-bg-deepest)] shrink-0"
   >
     <!-- 拖拽区域（仅此处可拖拽窗口） -->
     <div data-tauri-drag-region class="flex-1 h-full"></div>
@@ -40,7 +40,7 @@ async function close() {
     <!-- 窗口控制按钮（不得嵌套在 data-tauri-drag-region 内，否则 @click 被吞） -->
     <div class="flex items-center h-full shrink-0">
       <button
-        class="w-10 h-full flex items-center justify-center text-[#718096] hover:bg-[#ffffff0a] hover:text-[#a0aec0] transition-colors cursor-pointer"
+        class="w-10 h-full flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-hover-bg)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
         @click="minimize"
         title="最小化"
       >
@@ -49,7 +49,7 @@ async function close() {
         </svg>
       </button>
       <button
-        class="w-10 h-full flex items-center justify-center text-[#718096] hover:bg-[#ffffff0a] hover:text-[#a0aec0] transition-colors cursor-pointer"
+        class="w-10 h-full flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-hover-bg)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer"
         @click="maximize"
         title="最大化/还原"
       >
@@ -58,7 +58,7 @@ async function close() {
         </svg>
       </button>
       <button
-        class="w-10 h-full flex items-center justify-center text-[#718096] hover:bg-red-500/30 hover:text-[#fc8181] transition-colors cursor-pointer"
+        class="w-10 h-full flex items-center justify-center text-[var(--color-text-muted)] hover:bg-red-500/30 hover:text-[#fc8181] transition-colors cursor-pointer"
         @click="close"
         title="关闭"
       >

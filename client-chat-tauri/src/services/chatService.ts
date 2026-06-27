@@ -46,6 +46,7 @@ class SupabaseChatService implements IChatService {
         email: data.user.email ?? params.email,
         avatar_url: profile?.avatar_url ?? undefined,
         status: 'online',
+        theme: (profile?.theme as 'dark' | 'light') ?? 'dark',
       },
       session: data.session,
     }
@@ -85,6 +86,7 @@ class SupabaseChatService implements IChatService {
         nickname: params.nickname,
         email: params.email,
         status: 'online',
+        theme: 'dark',
       },
       session: data.session,
     }
@@ -124,6 +126,7 @@ class SupabaseChatService implements IChatService {
         email: data.session.user.email,
         avatar_url: profile?.avatar_url ?? undefined,
         status: 'online',
+        theme: (profile?.theme as 'dark' | 'light') ?? 'dark',
       },
       session: data.session,
     }
@@ -288,7 +291,7 @@ class SupabaseChatService implements IChatService {
       .from('profiles')
       .update({ nickname, updated_at: new Date().toISOString() })
       .eq('id', user.id)
-      .select('id, nickname, employee_id, avatar_url')
+      .select('id, nickname, employee_id, avatar_url, theme')
       .single()
 
     if (error) throw new Error(`更新个人信息失败: ${error.message}`)
@@ -298,6 +301,32 @@ class SupabaseChatService implements IChatService {
       employee_id: (profile as Record<string, unknown>)?.employee_id as string ?? '',
       nickname: (profile as Record<string, unknown>)?.nickname as string ?? user.email ?? '',
       avatar_url: (profile as Record<string, unknown>)?.avatar_url as string ?? undefined,
+      theme: ((profile as Record<string, unknown>)?.theme as 'dark' | 'light') ?? 'dark',
+      email: user.email,
+      status: 'online',
+    }
+  }
+
+  async updateTheme(theme: 'dark' | 'light'): Promise<User> {
+    const supabase = getSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('未登录')
+
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .update({ theme, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select('id, nickname, employee_id, avatar_url, theme')
+      .single()
+
+    if (error) throw new Error(`更新主题失败: ${error.message}`)
+
+    return {
+      id: user.id,
+      employee_id: (profile as Record<string, unknown>)?.employee_id as string ?? '',
+      nickname: (profile as Record<string, unknown>)?.nickname as string ?? user.email ?? '',
+      avatar_url: (profile as Record<string, unknown>)?.avatar_url as string ?? undefined,
+      theme: ((profile as Record<string, unknown>)?.theme as 'dark' | 'light') ?? 'dark',
       email: user.email,
       status: 'online',
     }
@@ -495,7 +524,7 @@ class SupabaseChatService implements IChatService {
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, nickname, employee_id, avatar_url, is_online, created_at')
+      .select('id, nickname, employee_id, avatar_url, is_online, created_at, theme')
       .or(`nickname.ilike.%${query}%,employee_id.ilike.%${query}%`)
       .limit(20)
 
@@ -511,6 +540,7 @@ class SupabaseChatService implements IChatService {
       avatar_url: (p.avatar_url as string) ?? undefined,
       status: ((p.is_online as boolean) ? 'online' : 'offline') as User['status'],
       created_at: (p.created_at as string) ?? undefined,
+      theme: (p.theme as 'dark' | 'light') ?? 'dark',
     }))
   }
 
@@ -524,7 +554,7 @@ class SupabaseChatService implements IChatService {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, nickname, employee_id, avatar_url, is_online, created_at')
+      .select('id, nickname, employee_id, avatar_url, is_online, created_at, theme')
       .order(sortColumn, { ascending: sortColumn === 'created_at' ? false : true })
       .limit(100)
 
@@ -540,6 +570,7 @@ class SupabaseChatService implements IChatService {
       avatar_url: (p.avatar_url as string) ?? undefined,
       status: ((p.is_online as boolean) ? 'online' : 'offline') as User['status'],
       created_at: (p.created_at as string) ?? undefined,
+      theme: (p.theme as 'dark' | 'light') ?? 'dark',
     }))
   }
 

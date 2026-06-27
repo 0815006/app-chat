@@ -1,0 +1,41 @@
+/* 浅色主题 — 覆盖 :root 中的深色默认值（需 <html class="light">） */
+:root.light {
+  /* 背景色 4 级 */
+  --color-bg-deepest: #e8ecf1;
+  --color-bg-deeper: #f0f2f5;
+  --color-bg-default: #f8f9fc;
+  --color-bg-elevated: #ffffff;
+
+  /* 弹窗专属背景 */
+  --color-bg-dialog: #ffffff;
+  --color-bg-dialog-input: #f0f2f5;
+  --color-bg-dialog-deep: #e8ecf1;
+
+  /* 文字色 6 级 */
+  --color-text-primary: #1a1a2e;
+  --color-text-heading: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #64748b;
+  --color-text-disabled: #94a3b8;
+  --color-text-dim: #64748b;
+
+  /* 边框色 3 级 */
+  --color-border-default: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-border-subtle: rgb(0 0 0 / 0.06);
+
+  /* 交互/叠加色（浅色用 black 透明度） */
+  --color-hover-bg: rgb(0 0 0 / 0.04);
+  --color-hover-strong: rgb(0 0 0 / 0.06);
+  --color-hover-weak: rgb(0 0 0 / 0.02);
+  --color-active-bg: #e0e7ff;
+  --color-overlay: rgb(0 0 0 / 0.40);
+  --color-overlay-light: rgb(0 0 0 / 0.20);
+
+  /* 输入框 */
+  --color-input-bg: #f0f2f5;
+  --color-input-bg-alt: #f0f2f5;
+
+  /* 滚动条 */
+  --color-scrollbar-thumb: #94a3b8;
+}

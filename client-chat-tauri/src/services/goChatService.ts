@@ -475,6 +475,23 @@ class GoChatService implements IChatService {
     return json.data.avatar_url as string
   }
 
+  async updateTheme(theme: 'dark' | 'light'): Promise<User> {
+    const token = localStorage.getItem('go-chat-token')
+    const res = await fetch(`${this.baseUrl()}/api/me/theme`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ theme }),
+    })
+
+    if (!res.ok) throw new Error(`更新主题失败: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.code !== 200) throw new Error(`更新主题失败: ${json.message}`)
+    return json.data as User
+  }
+
   // ==================== 群组 ====================
 
   async createGroup(name: string, memberIds: string[]): Promise<Group> {

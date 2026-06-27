@@ -79,10 +79,10 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="flex h-dvh w-full bg-[#1a1a2e] relative">
+  <div class="flex h-dvh w-full bg-[var(--color-bg-default)] relative">
     <!-- 右上角关闭按钮（decorations: false 时无系统标题栏，需自行提供退出入口） -->
     <button
-      class="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center text-[#718096] hover:bg-red-500/20 hover:text-[#fc8181] transition-colors cursor-pointer z-20"
+      class="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-red-500/20 hover:text-[#fc8181] transition-colors cursor-pointer z-20"
       title="退出软件"
       @click="closeWindow"
     >
@@ -91,7 +91,7 @@ async function handleSubmit() {
       </svg>
     </button>
     <!-- 左侧品牌区 -->
-    <div class="hidden md:flex flex-[0_0_420px] items-center justify-center relative overflow-hidden bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]">
+    <div class="hidden md:flex flex-[0_0_420px] items-center justify-center relative overflow-hidden bg-gradient-to-br from-[var(--color-bg-default)] via-[var(--color-bg-elevated)] to-[var(--color-bg-deepest)]">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(66,153,225,0.1),transparent_60%)]"></div>
       <div class="relative z-10 text-center">
         <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-400 to-green-400 shadow-[0_8px_32px_rgba(66,153,225,0.3)] mb-6">
@@ -99,16 +99,16 @@ async function handleSubmit() {
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h1 class="text-4xl font-bold text-[#e2e8f0] mb-2">Chat</h1>
-        <p class="text-[15px] text-[#a0aec0]">安全、即时、高效的内网聊天工具</p>
+        <h1 class="text-4xl font-bold text-[var(--color-text-primary)] mb-2">Chat</h1>
+        <p class="text-[15px] text-[var(--color-text-secondary)]">安全、即时、高效的内网聊天工具</p>
       </div>
     </div>
 
     <!-- 右侧表单区 -->
-    <div class="flex-1 flex items-center justify-center bg-[#1a1a2e]">
+    <div class="flex-1 flex items-center justify-center bg-[var(--color-bg-default)]">
       <div class="w-[380px] max-w-[90%]">
-        <h2 class="text-2xl font-semibold text-[#e2e8f0] mb-1">{{ isLogin ? '欢迎回来' : '创建账号' }}</h2>
-        <p class="text-sm text-[#718096] mb-7">
+        <h2 class="text-2xl font-semibold text-[var(--color-text-primary)] mb-1">{{ isLogin ? '欢迎回来' : '创建账号' }}</h2>
+        <p class="text-sm text-[var(--color-text-muted)] mb-7">
           {{ isLogin ? '使用邮箱登录您的账号' : '注册一个新账号开始聊天' }}
         </p>
 
@@ -125,7 +125,7 @@ async function handleSubmit() {
         <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
           <!-- 邮箱 -->
           <div class="flex flex-col gap-1.5">
-            <label for="email" class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">邮箱</label>
+            <label for="email" class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">邮箱</label>
             <input
               id="email"
               v-model="email"
@@ -133,13 +133,13 @@ async function handleSubmit() {
               placeholder="user@example.com"
               autocomplete="email"
               required
-              class="px-3.5 py-[11px] rounded-lg border border-[#2d3748] bg-[#1e293b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+              class="px-3.5 py-[11px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             />
           </div>
 
           <!-- 密码 -->
           <div class="flex flex-col gap-1.5">
-            <label for="password" class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">密码</label>
+            <label for="password" class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">密码</label>
             <input
               id="password"
               v-model="password"
@@ -147,26 +147,26 @@ async function handleSubmit() {
               placeholder="••••••••"
               autocomplete="current-password"
               required
-              class="px-3.5 py-[11px] rounded-lg border border-[#2d3748] bg-[#1e293b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+              class="px-3.5 py-[11px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             />
           </div>
 
           <!-- 确认密码 (仅注册) -->
           <div v-if="!isLogin" class="flex flex-col gap-1.5">
-            <label for="confirm" class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">确认密码</label>
+            <label for="confirm" class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">确认密码</label>
             <input
               id="confirm"
               v-model="confirmPassword"
               type="password"
               placeholder="再次输入密码"
               required
-              class="px-3.5 py-[11px] rounded-lg border border-[#2d3748] bg-[#1e293b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+              class="px-3.5 py-[11px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             />
           </div>
 
           <!-- 工号 (仅注册) -->
           <div v-if="!isLogin" class="flex flex-col gap-1.5">
-            <label for="empId" class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">工号 (7位数字)</label>
+            <label for="empId" class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">工号 (7位数字)</label>
             <input
               id="empId"
               v-model="employeeId"
@@ -175,7 +175,7 @@ async function handleSubmit() {
               maxlength="7"
               pattern="\d{7}"
               required
-              class="px-3.5 py-[11px] rounded-lg border border-[#2d3748] bg-[#1e293b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+              class="px-3.5 py-[11px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             />
             <span v-if="employeeId.trim() && !/^\d{7}$/.test(employeeId.trim())" class="text-[11px] text-[#fc8181]">
               工号必须为7位数字
@@ -184,14 +184,14 @@ async function handleSubmit() {
 
           <!-- 姓名 (仅注册) -->
           <div v-if="!isLogin" class="flex flex-col gap-1.5">
-            <label for="displayName" class="text-xs font-medium text-[#a0aec0] uppercase tracking-wider">姓名</label>
+            <label for="displayName" class="text-xs font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">姓名</label>
             <input
               id="displayName"
               v-model="name"
               type="text"
               placeholder="您的真实姓名"
               required
-              class="px-3.5 py-[11px] rounded-lg border border-[#2d3748] bg-[#1e293b] text-[#e2e8f0] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[#4a5568]"
+              class="px-3.5 py-[11px] rounded-lg border border-[var(--color-border-default)] bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] text-[15px] outline-none transition-colors duration-200 focus:border-blue-400 focus:shadow-[0_0_0_3px_rgba(66,153,225,0.15)] placeholder:text-[var(--color-text-disabled)]"
             />
           </div>
 
@@ -202,7 +202,7 @@ async function handleSubmit() {
           </button>
         </form>
 
-        <div class="mt-[22px] text-center text-[13px] text-[#718096]">
+        <div class="mt-[22px] text-center text-[13px] text-[var(--color-text-muted)]">
           <span v-if="isLogin">还没有账号？</span>
           <span v-else>已有账号？</span>
           <button class="bg-transparent border-none text-blue-400 text-[13px] cursor-pointer ml-1 underline underline-offset-2 hover:text-blue-300" @click="isLogin = !isLogin">

@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { User } from '../types'
 import { chatService } from '../services'
+
+/** 将主题值应用到 <html> class */
+function applyTheme(theme: 'dark' | 'light') {
+  document.documentElement.classList.toggle('light', theme === 'light')
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const currentUser = ref<User | null>(null)
@@ -13,6 +18,14 @@ export const useAuthStore = defineStore('auth', () => {
   /** 视图层通过 authStore.user 访问当前用户 */
   const user = computed(() => currentUser.value)
 
+  // 监听 currentUser.theme 变化，自动同步到 <html> class
+  watch(
+    () => currentUser.value?.theme,
+    (theme) => {
+      if (theme) applyTheme(theme)
+    }
+  )
+
   /** 登录 */
   async function login(email: string, password: string) {
     isLoading.value = true
@@ -20,6 +33,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await chatService.login({ email, password })
       currentUser.value = result.user
+      applyTheme(result.user.theme ?? 'dark')
     } catch (e) {
       error.value = e instanceof Error ? e.message : '登录失败'
       throw e
@@ -35,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await chatService.register({ email, password, employeeId, nickname })
       currentUser.value = result.user
+      applyTheme(result.user.theme ?? 'dark')
     } catch (e) {
       error.value = e instanceof Error ? e.message : '注册失败'
       throw e
@@ -50,6 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
       await chatService.logout()
     } finally {
       currentUser.value = null
+      applyTheme('dark') // 退出后恢复默认深色主题
     }
   }
 
@@ -60,6 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
       const result = await chatService.restoreSession()
       if (result) {
         currentUser.value = result.user
+        applyTheme(result.user.theme ?? 'dark')
         return true
       }
       return false
@@ -74,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function updateProfile(nickname: string) {
     const user = await chatService.updateProfile(nickname)
     currentUser.value = user
+    applyTheme(user.theme ?? 'dark')
   }
 
   /** 上传头像 */
@@ -94,10 +112,20 @@ export const useAuthStore = defineStore('auth', () => {
     return url
   }
 
+  /** 切换主题并持久化 */
+  async function setTheme(theme: 'dark' | 'light') {
+    const user = await chatService.updateTheme(theme)
+    if (currentUser.value) {
+      currentUser.value = { ...currentUser.value, theme: user.theme }
+    }
+    applyTheme(theme)
+  }
+
   return {
     currentUser, user, isLoading, error,
     showProfileDialog,
     login, register, logout, restoreSession,
     updateProfile, updateAvatar, deleteAvatar,
+    setTheme,
   }
 })
