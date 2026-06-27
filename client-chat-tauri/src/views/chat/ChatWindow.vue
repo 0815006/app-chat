@@ -9,6 +9,7 @@ import { downloadDir, join } from '@tauri-apps/api/path'
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { toast } from '../../utils/toast'
+import { resolveFileUrl } from '../../utils/fileUrl'
 import { invoke } from '@tauri-apps/api/core'
 
 /** 运行时检测：是否运行在 Tauri 原生环境中（Web 版本无 __TAURI_INTERNALS__） */
@@ -169,7 +170,7 @@ function formatFileSize(bytes: number | undefined): string {
  */
 async function downloadFileToLocal(msg: Message) {
   const msgId = msg.id
-  const url = msg.content
+  const url = resolveFileUrl(msg.content)
   
   // Web 环境：直接触发浏览器下载
   if (!isTauri) {
@@ -220,7 +221,7 @@ async function openLocalFile(msg: Message) {
   
   // Web 环境：直接在新标签页打开远程文件
   if (!isTauri) {
-    window.open(msg.content, '_blank')
+    window.open(resolveFileUrl(msg.content), '_blank')
     return
   }
   
@@ -683,11 +684,11 @@ function getSenderAvatar(msg: Message): string | undefined {
               <!-- 图片 -->
               <div v-else-if="item.msg_type === 'image'" class="p-1">
                 <img
-                  :src="item.content"
+                  :src="resolveFileUrl(item.content)"
                   :alt="item.file_name ?? '图片消息'"
                   class="max-w-[360px] max-h-[360px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
-                  @click.stop="openImagePreview(item.content)"
+                  @click.stop="openImagePreview(resolveFileUrl(item.content))"
                 />
               </div>
 
@@ -736,7 +737,7 @@ function getSenderAvatar(msg: Message): string | undefined {
 
               <!-- 语音 -->
               <div v-else-if="item.msg_type === 'voice'" class="px-4 py-3 flex items-center gap-3">
-                <audio :src="item.content" controls preload="metadata" class="h-9 w-full max-w-[240px]"></audio>
+                <audio :src="resolveFileUrl(item.content)" controls preload="metadata" class="h-9 w-full max-w-[240px]"></audio>
               </div>
 
               <!-- 降级 -->

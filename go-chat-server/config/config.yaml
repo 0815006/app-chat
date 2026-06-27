@@ -29,7 +29,6 @@ jwt:
 
 upload:
   dir: "${UPLOAD_DIR:./uploads}"
-  url_prefix: "${UPLOAD_URL_PREFIX:http://127.0.0.1:8094/uploads}"
   max_img: ${UPLOAD_MAX_IMG:10}    # 图片最大尺寸(MB)
   max_file: ${UPLOAD_MAX_FILE:500}  # 文件最大尺寸(MB)
   max_voice: ${UPLOAD_MAX_VOICE:5}  # 语音最大尺寸(MB)

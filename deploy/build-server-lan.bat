@@ -20,7 +20,6 @@ set "JWT_SECRET=go-chat-server-prod-jwt-secret-change-me"
 set "UPLOAD_DIR=D:/data/chat-server/uploads"
 set "SERVER_PORT=8094"
 set "DEPLOY_DIR=D:\app\chat-server"
-:: url_prefix 不设 — main.go 启动时自动检测本机 IP 生成
 :: ========================================================
 
 :: 切到项目根目录

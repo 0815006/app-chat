@@ -3,6 +3,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { useChatStore } from '../../stores/chat'
 import { useAuthStore } from '../../stores/auth'
 import { toast } from '../../utils/toast'
+import { resolveFileUrl } from '../../utils/fileUrl'
 import type { User, UserSortField } from '../../types'
 
 const props = defineProps<{
@@ -311,7 +312,7 @@ watch(
                       v-if="user.avatar_url"
                       class="w-10 h-10 rounded-full overflow-hidden"
                     >
-                      <img :src="user.avatar_url" class="w-full h-full object-cover" alt="" />
+                      <img :src="resolveFileUrl(user.avatar_url)" class="w-full h-full object-cover" alt="" />
                     </div>
                     <div
                       v-else

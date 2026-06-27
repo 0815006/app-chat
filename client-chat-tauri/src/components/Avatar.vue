@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { resolveFileUrl } from '../utils/fileUrl'
+
 interface Props {
   name: string
   online?: boolean
@@ -18,6 +21,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{ click: [] }>()
 
+/** 解析后的完整 URL（Go 后端相对路径 → 拼接 VITE_GO_BASE_URL） */
+const resolvedAvatarUrl = computed(() => resolveFileUrl(props.avatarUrl))
+
 const sizeMap: Record<string, { container: string; font: string }> = {
   sm: { container: 'w-9 h-9', font: 'text-sm' },
   md: { container: 'w-10 h-10', font: 'text-base' },
@@ -33,8 +39,8 @@ const sizeMap: Record<string, { container: string; font: string }> = {
   >
     <!-- 有图片时显示真实头像 -->
     <img
-      v-if="avatarUrl"
-      :src="avatarUrl"
+      v-if="resolvedAvatarUrl"
+      :src="resolvedAvatarUrl"
       :alt="name"
       :class="['avatar-img', sizeMap[size].container]"
     />

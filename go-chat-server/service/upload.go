@@ -82,7 +82,11 @@ func (s *UploadService) UploadFile(ctx context.Context, userID, fileType string,
 	return url, fileHeader.Filename, fileHeader.Size, nil
 }
 
-// saveFile 保存文件到本地磁盘
+// saveFile 保存文件到本地磁盘，返回相对路径（如 /uploads/avatars/xxx.png）。
+// 前端负责根据部署模式拼接完整 URL：
+//   - all-in-one Web：浏览器自动补齐相对路径
+//   - Tauri 桌面端：前端用 VITE_GO_BASE_URL + 相对路径
+//   - Supabase 模式：直接返回完整 URL（不走此函数）
 func (s *UploadService) saveFile(ctx context.Context, fileHeader *multipart.FileHeader, relativePath string) (string, error) {
 	cfg := config.Get()
 	uploadDir := cfg.Upload.Dir
@@ -117,14 +121,8 @@ func (s *UploadService) saveFile(ctx context.Context, fileHeader *multipart.File
 		return "", fmt.Errorf("保存文件失败: %w", err)
 	}
 
-	// 构造公开访问 URL
-	urlPrefix := cfg.Upload.URLPrefix
-	if urlPrefix == "" {
-		urlPrefix = "http://127.0.0.1:8094/uploads"
-	}
-	url := fmt.Sprintf("%s/%s", strings.TrimRight(urlPrefix, "/"), relativePath)
-
-	return url, nil
+	// 返回相对路径，前端负责拼接完整 URL
+	return "/uploads/" + relativePath, nil
 }
 
 func isImageExt(ext string) bool {

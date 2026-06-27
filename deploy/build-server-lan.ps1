@@ -29,7 +29,6 @@ $env:JWT_SECRET  = "go-chat-server-prod-jwt-secret-change-me"
 $env:UPLOAD_DIR  = "D:/data/chat-server/uploads"
 $ServerPort      = 8094
 $DeployDir       = "D:\app\chat-server"
-# url_prefix 不设 — main.go 启动时自动检测本机 IP 生成
 # ────────────────────────────────────────────────────────────────
 
 # 切到项目根目录

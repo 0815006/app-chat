@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { toast } from '../../utils/toast'
+import { resolveFileUrl } from '../../utils/fileUrl'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -28,12 +29,12 @@ watch(
   { immediate: true }
 )
 
-/** 当前头像展示：优先用本地预览，其次用远程 URL */
+/** 当前头像展示：优先用本地预览，其次用远程 URL（Go 相对路径经 resolveFileUrl 拼接） */
 const avatarSrc = computed(() => {
   if (selectedFile.value) {
     return URL.createObjectURL(selectedFile.value)
   }
-  return avatarPreview.value ?? null
+  return resolveFileUrl(avatarPreview.value)
 })
 
 /** 姓名首字母（无头像时显示） */

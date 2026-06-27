@@ -59,11 +59,10 @@ type JWTConfig struct {
 
 // UploadConfig 文件上传配置
 type UploadConfig struct {
-	Dir       string `mapstructure:"dir"`        // 上传文件存储目录
-	MaxImg    int64  `mapstructure:"max_img"`    // 图片最大尺寸(MB)
-	MaxFile   int64  `mapstructure:"max_file"`   // 文件最大尺寸(MB)
-	MaxVoice  int64  `mapstructure:"max_voice"`  // 语音最大尺寸(MB)
-	URLPrefix string `mapstructure:"url_prefix"` // 静态文件访问 URL 前缀
+	Dir      string `mapstructure:"dir"`       // 上传文件存储目录
+	MaxImg   int64  `mapstructure:"max_img"`   // 图片最大尺寸(MB)
+	MaxFile  int64  `mapstructure:"max_file"`  // 文件最大尺寸(MB)
+	MaxVoice int64  `mapstructure:"max_voice"` // 语音最大尺寸(MB)
 }
 
 var cfg *Config

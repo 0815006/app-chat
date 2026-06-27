@@ -20,7 +20,6 @@ Environment="DB_PASSWORD=root"
 Environment="REDIS_ENABLE=true"
 Environment="JWT_SECRET=go-chat-server-prod-jwt-secret-change-me"
 Environment="UPLOAD_DIR=/root/chat-server/uploads"
-Environment="UPLOAD_URL_PREFIX=https://realapex.site:8084/uploads"
 
 # 安全加固（可选）
 NoNewPrivileges=true
