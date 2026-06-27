@@ -224,10 +224,12 @@ echo ChatServer.exe status
 echo.
 echo echo ==========================================
 echo echo   ✅ Chat Server 服务已启动
-echo echo   访问: http://localhost:%SERVER_PORT%/api/ping
+) > "%OUT_DIR%\startServer.bat"
+>>"%OUT_DIR%\startServer.bat" echo echo   访问: http://localhost:%SERVER_PORT%/api/ping
+(
 echo echo ==========================================
 echo pause
-) > "%OUT_DIR%\startServer.bat"
+) >> "%OUT_DIR%\startServer.bat"
 
 :: ---- stopServer.bat (停止 + 卸载服务) ----
 (
