@@ -387,7 +387,7 @@ router.beforeEach(async (to, _from, next) => {
 
 ### 5.2 核心业务表结构 (Supabase / PostgreSQL)
 
-> 完整建表 SQL、索引优化及常用查询参见docs目录下的序号开头的sql文件。
+> 完整建表 SQL、索引优化及常用查询参见 [supabase-sql/](../supabase-sql/) 目录下的序号开头sql文件。
 
 #### 5.2.1 用户资料表 (`profiles`)
 
@@ -428,7 +428,7 @@ router.beforeEach(async (to, _from, next) => {
 
 ### 5.3 Row Level Security (RLS) 策略
 
-Supabase 默认开启 RLS，必须显式添加以下 **7 条最小策略**才能正常读写。完整 SQL 及调试方法参见docs目录下的带序号的sql文件。
+Supabase 默认开启 RLS，必须显式添加以下 **7 条最小策略**才能正常读写。完整 SQL 及调试方法参见 [supabase-sql/](../supabase-sql/) 目录下的带序号sql文件。
 
 | # | 表 | 操作 | 策略名称 | 规则 |
 |---|----|------|---------|------|

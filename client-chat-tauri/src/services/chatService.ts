@@ -260,7 +260,7 @@ class SupabaseChatService implements IChatService {
 
     if (error) {
       if (error.message?.includes('Bucket') && error.message?.includes('not found')) {
-        throw new Error(`存储桶 "${bucket}" 不存在，请先执行 docs/04_init_storage_buckets.sql 初始化`)
+        throw new Error(`存储桶 "${bucket}" 不存在，请先执行 supabase-sql/04_init_storage_buckets.sql 初始化`)
       }
       throw new Error(`文件上传失败: ${error.message}`)
     }
