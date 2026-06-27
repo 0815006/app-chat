@@ -97,12 +97,12 @@ echo.
 echo ✅ Tauri 编译完成
 echo.
 
-:: ========== Step 4: 汇总产物到 bin/内网版本/ ==========
+:: ========== Step 4: 汇总产物到 bin/chat-client-lan/ ==========
 echo [4/4] 📋 汇总构建产物...
 
 set "SRC_EXE=%PROJECT_ROOT%\client-chat-tauri\src-tauri\target\release\client-chat-tauri.exe"
 set "SRC_BUNDLE=%PROJECT_ROOT%\client-chat-tauri\src-tauri\target\release\bundle"
-set "OUT_DIR=%PROJECT_ROOT%\bin\内网版本"
+set "OUT_DIR=%PROJECT_ROOT%\bin\chat-client-lan"
 
 :: 确保输出目录存在
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%" >nul 2>&1

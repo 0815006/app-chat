@@ -1,9 +1,0 @@
-<service>
-  <id>ChatServer</id>
-  <name>Go Chat Server Backend</name>
-  <description>Tauri 聊天软件的 Go 原生后端常驻服务</description>
-  <executable>D:\chat-server\go-chat-server.exe</executable>
-  <workingdirectory>D:\chat-server</workingdirectory>
-  <logmode>rotate</logmode>
-  <startmode>Automatic</startmode>
-</service>

@@ -1,0 +1,35 @@
+# go-chat-server 配置文件
+# 语法：默认值
+#   - 本地 dev 启动：不设任何环境变量，全部使用默认值
+#   - 内网 LAN 部署：build-server-lan.ps1 构建时 set 环境变量 → --expand-config 展开为写死值的 config.yaml
+#   - 腾讯云部署：systemd Environment= 注入环境变量覆盖默认值
+server:
+  port: 8094
+  mode: release  # debug | release | test
+
+database:
+  host: 22.188.9.144
+  port: 3306
+  user: root
+  password: "Star002!"
+  dbname: chat_db
+  charset: utf8mb4
+  parse_time: true
+  loc: Local
+
+redis:
+  enable: false
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+
+jwt:
+  secret: "go-chat-server-prod-jwt-secret-change-me"
+  expire_hours: 72
+
+upload:
+  dir: "D:/data/chat-server/uploads"
+  url_prefix: "http://127.0.0.1:8094/uploads"
+  max_img: 10    # 图片最大尺寸(MB)
+  max_file: 500  # 文件最大尺寸(MB)
+  max_voice: 5  # 语音最大尺寸(MB)

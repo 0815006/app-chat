@@ -126,8 +126,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # 3.5 上传 Nginx 配置
-Write-Host "  上传 Nginx 配置: nginx-chat.conf → /etc/nginx/conf.d/app-chat.conf" -ForegroundColor DarkGray
-scp "$PSScriptRoot\nginx-chat.conf" "${SERVER_USER}@${SERVER_IP}:/etc/nginx/conf.d/app-chat.conf"
+Write-Host "  上传 Nginx 配置: nginx-chat-tencent.conf → /etc/nginx/conf.d/app-chat.conf" -ForegroundColor DarkGray
+scp "$PSScriptRoot\nginx-chat-tencent.conf" "${SERVER_USER}@${SERVER_IP}:/etc/nginx/conf.d/app-chat.conf"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Nginx 配置文件上传失败！" -ForegroundColor Red
     Read-Host "按回车键退出..."

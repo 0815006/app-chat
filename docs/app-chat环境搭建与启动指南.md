@@ -413,7 +413,7 @@ go build -ldflags "-s -w" -o go-chat-server.exe main.go
 
 ### 8.1 准备部署文件
 
-将以下文件放在目标服务器的同一个目录下（例如 `D:\chat-server\`）：
+将以下文件放在目标服务器的同一个目录下（例如 `D:\app\chat-server\`）：
 
 | 文件 | 说明 |
 |------|------|
@@ -430,8 +430,8 @@ go build -ldflags "-s -w" -o go-chat-server.exe main.go
   <id>ChatServer</id>
   <name>Go Chat Server Backend</name>
   <description>Tauri 聊天软件的 Go 原生后端常驻服务</description>
-  <executable>D:\chat-server\go-chat-server.exe</executable>
-  <workingdirectory>D:\chat-server</workingdirectory>
+  <executable>D:\app\chat-server\go-chat-server.exe</executable>
+  <workingdirectory>D:\app\chat-server</workingdirectory>
   <logmode>rotate</logmode>
   <startmode>Automatic</startmode>
 </service>
@@ -441,7 +441,7 @@ go build -ldflags "-s -w" -o go-chat-server.exe main.go
 
 ### 8.3 注册并启动服务
 
-在 `D:\chat-server\` 目录下，以**管理员身份**打开 PowerShell，依次执行：
+在 `D:\app\chat-server\` 目录下，以**管理员身份**打开 PowerShell，依次执行：
 
 ```powershell
 # 1. 注册成为 Windows 服务

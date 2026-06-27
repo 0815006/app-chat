@@ -234,15 +234,15 @@ $UPLOAD_DIR  = "D:/data/chat-server/uploads"
 - 自动编译 Vue 前端（LAN 模式）
 - 自动编译 Go 后端（内嵌前端，Windows amd64）
 - **构建时展开 config.yaml**：调用 `go-chat-server.exe --expand-config` 将 `${VAR:default}` 模板替换为步骤 1 设置的实际值，输出写死参数的无变量配置文件
-- 产物汇总到 `bin/内网版本/chat-server/` 目录
+- 产物汇总到 `bin/chat-server-lan/` 目录
 
-**步骤 3** — 将 `bin/内网版本/chat-server/` 整个目录复制到内网 Windows 服务器（如 `D:\chat-server\`）。
+**步骤 3** — 将 `bin/chat-server-lan/` 整个目录复制到内网 Windows 服务器（如 `D:\app\chat-server\`）。
 
-**步骤 4** — 以管理员身份运行 `D:\chat-server\startServer.bat`，注册并启动 WinSW 服务（开机自启）。
+**步骤 4** — 以管理员身份运行 `D:\app\chat-server\startServer.bat`，注册并启动 WinSW 服务（开机自启）。
 
 **步骤 5 (可选)** — 配置内网 Nginx 反代。
 
-联系管理员在内网 Nginx 中新增配置块（参照 [`deploy/nginx-chat.conf`](../deploy/nginx-chat.conf)），监听内网 `8084`：
+联系管理员在内网 Nginx 中新增配置块（参照 [`deploy/nginx-chat-tencent.conf`](../deploy/nginx-chat-tencent.conf)），监听内网 `8084`：
 
 - `/api` → `proxy_pass http://127.0.0.1:8094`
 - `/ws` → `proxy_pass` 带 `Upgrade` 头
@@ -350,7 +350,7 @@ grep proxy_pass /etc/nginx/conf.d/app-chat.conf
 ### 8.3 WebSocket 一直断开
 
 1. 确认 Nginx 中 `/ws` location 配置了 `proxy_http_version 1.1` 和 `Upgrade` 头
-2. 查看 [`deploy/nginx-chat.conf`](../deploy/nginx-chat.conf) 中 `/ws` 块
+2. 查看 [`deploy/nginx-chat-tencent.conf`](../deploy/nginx-chat-tencent.conf) 中 `/ws` 块
 3. 确认客户端 `VITE_GO_WS_URL` 使用 `wss://` (HTTPS) 而非 `ws://`
 
 ### 8.4 端口冲突
@@ -387,7 +387,7 @@ app-chat/
 │   ├── build-server-lan.bat       # 模式 C：构建内网 Server all-in-one (Go + Vue SPA)
 │   ├── build-server-lan.ps1       # 模式 C：同上 (PowerShell 版)
 │   ├── deploy-server-tencent.ps1  # 模式 B：腾讯云 Go 后端全自动部署（含内嵌 SPA）
-│   ├── nginx-chat.conf            # 模式 B：Nginx HTTPS 反代配置（全路径 proxy_pass）
+│   ├── nginx-chat-tencent.conf            # 模式 B：Nginx HTTPS 反代配置（全路径 proxy_pass）
 │   └── chat-server.service        # 模式 B：Linux systemd 服务定义
 ├── go-chat-server/
 │   ├── main.go                    # Go 入口（//go:embed all:frontend/dist）
@@ -429,5 +429,5 @@ app-chat/
 > 2. **GORM AutoMigrate** 是唯一的建表机制，禁止手动执行 DDL
 > 3. **Redis 可关**：`redis.enable: false` 后自动降级，不崩不 panic
 > 4. **JWT 密钥**：生产部署前务必修改 [`chat-server.service`](../deploy/chat-server.service) 中 `Environment="JWT_SECRET=..."` 的值
-> 5. **SSL 证书**：模式 B 需要云上 Nginx 配置 SSL 证书，路径见 [`nginx-chat.conf`](../deploy/nginx-chat.conf)
+> 5. **SSL 证书**：模式 B 需要云上 Nginx 配置 SSL 证书，路径见 [`nginx-chat-tencent.conf`](../deploy/nginx-chat-tencent.conf)
 > 6. **文件存储**：生产环境 `upload.dir` 设为绝对路径，与 Nginx `/uploads/` 代理对齐
