@@ -152,12 +152,13 @@ func SendMessageHTTP(c *gin.Context) {
 	userID := mustGetUserID(c)
 
 	var req struct {
-		ReceiverID string `json:"receiver_id"`
-		GroupID    string `json:"group_id,omitempty"`
-		Content    string `json:"content"`
-		MsgType    string `json:"msg_type"`
-		FileName   string `json:"file_name,omitempty"`
-		FileSize   int64  `json:"file_size,omitempty"`
+		ReceiverID string   `json:"receiver_id"`
+		GroupID    string   `json:"group_id,omitempty"`
+		Content    string   `json:"content"`
+		MsgType    string   `json:"msg_type"`
+		MentionIDs []string `json:"mention_ids,omitempty"`
+		FileName   string   `json:"file_name,omitempty"`
+		FileSize   int64    `json:"file_size,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误"})
@@ -174,7 +175,7 @@ func SendMessageHTTP(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	msg, err := msgStoreSvc.StoreMessage(ctx, userID, req.ReceiverID, req.GroupID, req.Content, req.MsgType, req.FileName, req.FileSize)
+	msg, err := msgStoreSvc.StoreMessage(ctx, userID, req.ReceiverID, req.GroupID, req.Content, req.MsgType, req.FileName, req.FileSize, req.MentionIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
 		return

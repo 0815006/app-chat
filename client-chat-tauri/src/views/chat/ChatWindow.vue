@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, computed, reactive } from 'vue'
+import { ref, watch, nextTick, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
 import Avatar from '../../components/Avatar.vue'
 import ImagePreview from '../../components/ImagePreview.vue'
 import type { Message } from '../../types'
+import { MENTION_ALL } from '../../types'
 import { downloadDir, join } from '@tauri-apps/api/path'
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
@@ -18,6 +19,25 @@ const isTauri = !!(window as any).__TAURI_INTERNALS__
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 const containerRef = ref<HTMLDivElement>()
+
+// ========== @mention 辅助函数 ==========
+
+/** 判断一条消息是否 @ 了当前用户（含 @所有人） */
+function isMentionedMe(msg: Message): boolean {
+  if (!msg.mention_ids || msg.mention_ids.length === 0) return false
+  return msg.mention_ids.includes(MENTION_ALL) || msg.mention_ids.includes(authStore.currentUser?.id ?? '')
+}
+
+/** XSS 防护：转义 HTML 特殊字符 */
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>')
+}
+
+/** 渲染 @提及 文本：先转义防止 XSS，再将 @xxx 替换为蓝色高亮 span */
+function renderMentionText(content: string): string {
+  const escaped = escapeHtml(content)
+  return escaped.replace(/@(所有人|\S+)/g, '<span class="text-blue-400 font-medium">@$1</span>')
+}
 
 /** 群名内联编辑状态 */
 const editingGroupName = ref(false)
@@ -71,6 +91,9 @@ function onBubbleClick() {
 /** 图片预览状态 */
 const previewVisible = ref(false)
 const previewSrc = ref('')
+
+/** 刚进入聊天标志：首次加载消息后无视 showUnreadBubble，强制滚到底部 */
+const justEnteredChat = ref(false)
 
 // ==================== 文件下载（文件系统持久化检测） ====================
 
@@ -393,6 +416,101 @@ const isPullingMore = ref(false)
 /** 初始滚动标志：防止编程式滚底被 onScroll 误判为"用户滚到底"而立即隐藏气泡 */
 const isInitialScroll = ref(false)
 
+// ==================== IntersectionObserver：视口标记已读 ====================
+
+let unreadObserver: IntersectionObserver | null = null
+/** 记录已经在视口中曝光过的消息 ID，防止重复调用 markMessageAsRead */
+const exposedMsgIds = new Set<string>()
+
+function setupUnreadObserver() {
+  destroyUnreadObserver()
+
+  if (!containerRef.value) return
+
+  unreadObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const msgId = (entry.target as HTMLElement).dataset.msgId
+          if (msgId && !exposedMsgIds.has(msgId)) {
+            exposedMsgIds.add(msgId)
+            chatStore.markMessageAsRead(msgId)
+          }
+        }
+      }
+    },
+    {
+      root: containerRef.value,
+      rootMargin: '0px',
+      threshold: 0.1, // 消息元素 10% 进入视口即视为"已读"
+    }
+  )
+}
+
+function destroyUnreadObserver() {
+  if (unreadObserver) {
+    unreadObserver.disconnect()
+    unreadObserver = null
+  }
+  exposedMsgIds.clear()
+}
+
+/**
+ * 观察容器内所有未读消息元素
+ * 每次 messages 变化后重新注册 observer（Vue 可能重新渲染 DOM）
+ */
+function observeUnreadMessages() {
+  if (!unreadObserver || !containerRef.value) return
+  const container = containerRef.value
+  const elements = container.querySelectorAll('[data-msg-id]')
+  elements.forEach((el) => {
+    unreadObserver!.observe(el)
+  })
+}
+
+/**
+ * 监听 messages 变化，重新注册 observer 到所有消息元素
+ * 使用防抖避免频繁重建
+ */
+let observeTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => chatStore.messages,
+  () => {
+    if (observeTimer) clearTimeout(observeTimer)
+    observeTimer = setTimeout(() => {
+      observeUnreadMessages()
+    }, 200)
+  },
+  { deep: false }
+)
+
+/** 切换聊天时重置曝光记录 */
+watch(
+  () => [chatStore.activeFriendId, chatStore.activeGroupId] as const,
+  () => {
+    exposedMsgIds.clear()
+    // 重新设置 observer（容器可能已变化）
+    nextTick(() => {
+      setupUnreadObserver()
+      observeUnreadMessages()
+    })
+  }
+)
+
+onMounted(() => {
+  nextTick(() => {
+    setupUnreadObserver()
+    observeUnreadMessages()
+  })
+})
+
+onUnmounted(() => {
+  destroyUnreadObserver()
+  if (observeTimer) clearTimeout(observeTimer)
+})
+
+// ==================== 消息列表渲染 ====================
+
 /**
  * 在相邻消息间隔 >5 分钟的位置插入分隔线
  * 返回 "(消息 | 'time-separator')[]"
@@ -428,10 +546,15 @@ const displayMessages = computed(() => {
   return result
 })
 
+// ==================== 滚动逻辑 ====================
+
 // 进入新聊天时（切换好友/群组）：始终滚到最新消息，气泡悬浮供用户向上定位未读
 watch(
   () => [chatStore.activeFriendId, chatStore.activeGroupId] as const,
   async () => {
+    // 标记刚进入新聊天，后续 messages.length watch 将无视 showUnreadBubble 强制滚底
+    justEnteredChat.value = true
+
     await nextTick()
     if (!containerRef.value) return
 
@@ -446,18 +569,32 @@ watch(
   }
 )
 
-// 新消息到达当前聊天时：气泡可见则不跳转（让用户继续阅读），否则滚底
+// 新消息到达当前聊天时：刚进入聊天强制滚底；否则气泡可见时不跳转
 watch(
   () => chatStore.messages.length,
   async () => {
     // 加载更多触发的消息变化不自动滚底
     if (isPullingMore.value) return
-    // 气泡可见时不做跳转——用户正在阅读未读区域，由 Realtime 回调更新快照计数
-    if (chatStore.showUnreadBubble) return
+
+    if (justEnteredChat.value) {
+      // 刚进入聊天：无视 showUnreadBubble，强制滚到底部再显示气泡
+      justEnteredChat.value = false
+    } else {
+      // 气泡可见时不做跳转——用户正在阅读未读区域，unreadRemaining 由 computed 自动更新
+      if (chatStore.showUnreadBubble) return
+    }
 
     await nextTick()
     if (containerRef.value) {
       containerRef.value.scrollTop = containerRef.value.scrollHeight
+    }
+
+    // 刚进入聊天的编程式滚底需要保护气泡，防止 onScroll 立即误判为"用户主动滚到底"
+    if (!isPullingMore.value && chatStore.showUnreadBubble) {
+      isInitialScroll.value = true
+      setTimeout(() => {
+        isInitialScroll.value = false
+      }, 600)
     }
   }
 )
@@ -470,7 +607,7 @@ watch(
   }
 )
 
-/** 监听滚动到顶部，触发加载更多；并检测气泡可见性 */
+/** 监听滚动到顶部，触发加载更多；并检测气泡消失 */
 function onScroll() {
   if (!containerRef.value) return
   const el = containerRef.value
@@ -480,17 +617,18 @@ function onScroll() {
     pullMoreHistory()
   }
 
-  // === 未读气泡可见性检测 + 延迟已读 ===
+  // === 未读气泡消失检测 ===
 
   // 初始滚动期间不触发气泡消失检测（编程式滚底 vs 用户主动滚底）
   if (isInitialScroll.value) return
 
-  // 用户主动滚动到底部附近（< 120px）→ 隐藏气泡并标记已读
-  // 这是气泡自动消失的唯一触发条件（与微信行为一致：只有用户滚到底才算"看完"）
+  // 用户主动滚动到底部附近（< 120px）→ 隐藏气泡
+  // 注意：此处的隐藏只是清除 firstUnreadMessageId；
+  // unreadRemaining computed 会自动反映实际剩余未读数
+  // （由 IntersectionObserver 的逐条 markMessageAsRead 驱动 is_read 变化）
   const distToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
   if (distToBottom < 120 && chatStore.showUnreadBubble) {
     chatStore.dismissUnreadBubble()
-    chatStore.markCurrentChatAsRead()
   }
 }
 
@@ -667,7 +805,7 @@ function getSenderAvatar(msg: Message): string | undefined {
       <!-- 未读浮动气泡 -->
       <Transition name="bubble-fade">
         <div
-          v-if="chatStore.showUnreadBubble && chatStore.snapshotUnreadCount > 0"
+          v-if="chatStore.showUnreadBubble && chatStore.unreadRemaining > 0"
           class="sticky top-4 z-10 flex justify-center pointer-events-none"
         >
           <button
@@ -677,7 +815,7 @@ function getSenderAvatar(msg: Message): string | undefined {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 text-blue-400">
               <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>{{ chatStore.snapshotUnreadCount }} 条新消息</span>
+            <span>{{ chatStore.unreadRemaining }} 条新消息</span>
           </button>
         </div>
       </Transition>
@@ -724,13 +862,25 @@ function getSenderAvatar(msg: Message): string | undefined {
             >
               {{ getSenderName(item) }}
             </div>
+            <!-- @mention 提示条（他人发的消息，自己是被 @ 者） -->
+            <div
+              v-if="chatStore.activeGroup && item.sender_id !== authStore.currentUser?.id && isMentionedMe(item)"
+              class="flex items-center gap-1 text-[11px] text-blue-400 mb-1 ml-1"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1s1 .45 1 1v4c0 .55-.45 1-1 1zm1-8h-2V7h2v2z"/>
+              </svg>
+              <span>有人@我</span>
+            </div>
             <div
               class="rounded-2xl overflow-hidden"
               :class="item.is_revoked
                 ? 'bg-[var(--color-hover-weak)] border border-[var(--color-border-subtle)] text-[var(--color-text-dim)] italic rounded-br-md'
-                : item.sender_id === authStore.currentUser?.id
-                  ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
-                  : 'bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] rounded-bl-md'"
+                : isMentionedMe(item) && item.sender_id !== authStore.currentUser?.id
+                  ? 'bg-blue-500/10 border border-blue-400/30 text-[var(--color-text-primary)] rounded-bl-md'
+                  : item.sender_id === authStore.currentUser?.id
+                    ? 'bg-gradient-to-br from-blue-400 to-green-400 text-white rounded-br-md'
+                    : 'bg-[var(--color-input-bg-alt)] text-[var(--color-text-primary)] rounded-bl-md'"
             >
               <!-- 已撤回（仅发送者可见此标记；接收者的消息在 store 中通过 splice 移除，不会渲染到这里） -->
               <p v-if="item.is_revoked" class="px-4 py-2.5 text-[13px] flex items-center gap-2">
@@ -740,8 +890,12 @@ function getSenderAvatar(msg: Message): string | undefined {
                 </svg>
                 <span>你撤回了一条消息</span>
               </p>
-              <!-- 文本 -->
-              <p v-else-if="item.msg_type === 'text'" class="px-4 py-2.5 text-[14px] leading-relaxed break-words whitespace-pre-wrap">{{ item.content }}</p>
+              <!-- 文本（支持 @mention 蓝色高亮） -->
+              <p
+                v-else-if="item.msg_type === 'text'"
+                class="px-4 py-2.5 text-[14px] leading-relaxed break-words whitespace-pre-wrap"
+                v-html="renderMentionText(item.content)"
+              ></p>
 
               <!-- 图片 -->
               <div v-else-if="item.msg_type === 'image'" class="p-1">

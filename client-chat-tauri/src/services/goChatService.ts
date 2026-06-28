@@ -175,6 +175,7 @@ class GoChatService implements IChatService {
         content: msgData.content,
         msg_type: msgData.msg_type,
         group_id: msgData.group_id,
+        mention_ids: msgData.mention_ids,
         file_name: msgData.file_name,
         file_size: msgData.file_size,
       }))
@@ -187,6 +188,7 @@ class GoChatService implements IChatService {
         content: msgData.content,
         msg_type: msgData.msg_type,
         group_id: msgData.group_id,
+        mention_ids: msgData.mention_ids,
         created_at: new Date().toISOString(),
       }
     }

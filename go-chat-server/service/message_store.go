@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,7 +16,8 @@ import (
 type MessageStoreService struct{}
 
 // StoreMessage 将消息异步写入 MySQL
-func (s *MessageStoreService) StoreMessage(ctx context.Context, senderID, receiverID, groupID, content, msgType, fileName string, fileSize int64) (*model.Message, error) {
+func (s *MessageStoreService) StoreMessage(ctx context.Context, senderID, receiverID, groupID, content, msgType, fileName string, fileSize int64, mentionIDs []string) (*model.Message, error) {
+	mentionJSON := marshalMentionIDs(mentionIDs)
 	msg := model.Message{
 		ID:         uuid.New().String(),
 		SenderID:   senderID,
@@ -23,6 +25,7 @@ func (s *MessageStoreService) StoreMessage(ctx context.Context, senderID, receiv
 		GroupID:    groupID,
 		Content:    content,
 		MsgType:    msgType,
+		MentionIDs: mentionJSON,
 		FileName:   fileName,
 		FileSize:   fileSize,
 		IsRead:     false,
@@ -187,6 +190,18 @@ func (s *MessageStoreService) GetGroupUnreadCount(ctx context.Context, groupID, 
 			groupID, userID).
 		Count(&count)
 	return int(count)
+}
+
+// marshalMentionIDs 将 []string 序列化为 JSON 字符串用于存储
+func marshalMentionIDs(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(ids)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // MarkGroupMessagesRead 批量标记群消息为已读

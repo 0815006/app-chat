@@ -182,6 +182,10 @@ class SupabaseChatService implements IChatService {
     }
     // 群聊消息：携带 group_id
     if (msgData.group_id) insertPayload.group_id = msgData.group_id
+    // 群聊 @mention
+    if (msgData.mention_ids && msgData.mention_ids.length > 0) {
+      insertPayload.mention_ids = msgData.mention_ids
+    }
     // 非文本消息携带文件元数据
     if (msgData.file_name) insertPayload.file_name = msgData.file_name
     if (msgData.file_size !== undefined) insertPayload.file_size = msgData.file_size

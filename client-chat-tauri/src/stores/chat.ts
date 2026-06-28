@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, nextTick } from 'vue'
 import type { Message, Friend, Group, GroupMember, ChatTarget, UserSortField, ChatServiceType } from '../types'
+import { MENTION_ALL } from '../types'
 import { chatService } from '../services'
 import { useAuthStore } from './auth'
 import { toast } from '../utils/toast'
@@ -99,17 +100,30 @@ export const useChatStore = defineStore('chat', () => {
 
   // ========== 未读浮动气泡 ==========
 
-  /** 进入聊天时的未读数快照（不清零，用于气泡显示） */
-  const snapshotUnreadCount = ref(0)
-
-  /** 当前聊天中第一条未读消息的 ID（用于 scrollIntoView 定位） */
+  /**
+   * 当前聊天中第一条未读消息的 ID（用于 scrollIntoView 定位）
+   * 在 loadHistory/loadGroupHistory 中设置：取消息数组中最早一条 is_read=false 的消息
+   */
   const firstUnreadMessageId = ref<string | null>(null)
 
-  /** 气泡是否可见 */
-  const showUnreadBubble = ref(false)
+  /**
+   * 剩余未读消息数 — 基于 messages 数组中 is_read 字段实时计算
+   * 只统计对方发来的、未被撤回的消息
+   */
+  const unreadRemaining = computed(() => {
+    const authStore = useAuthStore()
+    if (!authStore.currentUser) return 0
+    return messages.value.filter(
+      (m) => m.sender_id !== authStore.currentUser!.id && !m.is_read && !m.is_revoked
+    ).length
+  })
 
-  /** 是否已经为当前聊天调用过 markAsRead（防止重复调用） */
-  const hasMarkedAsRead = ref(false)
+  /**
+   * 气泡是否可见：有未读定位目标 且 确实还有未读消息
+   */
+  const showUnreadBubble = computed(() => {
+    return firstUnreadMessageId.value !== null && unreadRemaining.value > 0
+  })
 
   // ========== 派生状态 ==========
 
@@ -185,7 +199,8 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 跳转到第一条未读消息（由 ChatWindow 调用）
-   * 使用 data-msg-id 属性查找对应 DOM 元素并 scrollIntoView
+   * 通过精确计算目标 scrollTop + scrollTo 实现，避免 scrollIntoView 与
+   * setTimeout 的竞态导致滚动距离不足。
    */
   function jumpToFirstUnread(containerEl: HTMLElement) {
     if (!firstUnreadMessageId.value) return
@@ -193,31 +208,29 @@ export const useChatStore = defineStore('chat', () => {
       `[data-msg-id="${firstUnreadMessageId.value}"]`
     ) as HTMLElement | null
     if (el) {
-      el.scrollIntoView({ block: 'start', behavior: 'smooth' })
-      // 微调：scrollIntoView 后预留 80px 顶部空间
-      setTimeout(() => {
-        containerEl.scrollTop -= 80
-      }, 50)
+      // 精确计算目标滚动位置：元素顶部相对于容器可滚动区域顶部的偏移 - 80px 呼吸空间
+      const containerRect = containerEl.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const offsetInViewport = elRect.top - containerRect.top
+      const targetScrollTop = containerEl.scrollTop + offsetInViewport - 80
+      containerEl.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth',
+      })
     } else {
       // fallback：估算位置（约 30% 高度处）
       containerEl.scrollTop = containerEl.scrollHeight * 0.3
     }
   }
 
-  /** 隐藏气泡并重置未读快照 */
+  /** 隐藏气泡并清除定位目标 */
   function dismissUnreadBubble() {
-    showUnreadBubble.value = false
-    snapshotUnreadCount.value = 0
     firstUnreadMessageId.value = null
   }
 
-  /** 快照并重置未读气泡状态（切换聊天入口统一调用） */
-  function snapshotAndSetUnread(unreadCount: number) {
-    dismissUnreadBubble()
-    hasMarkedAsRead.value = false
-    if (unreadCount > 0) {
-      snapshotUnreadCount.value = unreadCount
-    }
+  /** 重置当前聊天未读气泡状态（切换聊天入口统一调用） */
+  function resetUnreadBubble() {
+    firstUnreadMessageId.value = null
   }
 
   // ========== 好友操作 ==========
@@ -245,12 +258,13 @@ export const useChatStore = defineStore('chat', () => {
     const found = friends.value.find(f => f.friend_id === id) ?? null
     activeFriend.value = found
     if (found) {
-      // 快照未读数（不清零），用于后续定位第一条未读消息
+      // 在清零前保存原始未读数，供 calcLoadLimit 使用
       const unread = found.unread_count ?? 0
-      snapshotAndSetUnread(unread)
+      // 重置气泡状态
+      resetUnreadBubble()
       // 立即清零前端未读计数（避免 FriendList 角标残留）
       found.unread_count = 0
-      await loadHistory(found.friend_id)
+      await loadHistory(found.friend_id, unread)
     }
   }
 
@@ -304,9 +318,9 @@ export const useChatStore = defineStore('chat', () => {
     activeGroup.value = found
     if (found) {
       const unread = found.unread_count ?? 0
-      snapshotAndSetUnread(unread)
+      resetUnreadBubble()
       found.unread_count = 0
-      await loadGroupHistory(found.id)
+      await loadGroupHistory(found.id, unread)
     }
   }
 
@@ -398,10 +412,35 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  // ========== 撤回过滤辅助函数 ==========
+
+  /**
+   * 对一组消息执行撤回过滤：
+   * - 接收者侧：过滤掉已撤回的消息（不显示）
+   * - 发送者侧：保留，但替换为 "你撤回了一条消息"
+   * 同时叠加客户端撤回缓存（revokedMessageIds）
+   */
+  function filterRevoked(history: Message[], myId: string): Message[] {
+    const filtered: Message[] = []
+    for (const m of history) {
+      if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
+        if (m.sender_id === myId) {
+          m.is_revoked = true
+          m.content = '你撤回了一条消息'
+          filtered.push(m)
+        }
+        // else: 接收者侧直接丢弃
+      } else {
+        filtered.push(m)
+      }
+    }
+    return filtered
+  }
+
   // ========== 消息操作 ==========
 
   /** 拉取第一页历史消息（切换好友时调用） */
-  async function loadHistory(friendId: string) {
+  async function loadHistory(friendId: string, unreadCount: number = 0) {
     const authStore = useAuthStore()
     if (!authStore.currentUser) {
       throw new Error('请先登录')
@@ -409,8 +448,8 @@ export const useChatStore = defineStore('chat', () => {
     isLoading.value = true
     hasMore.value = false
 
-    // 根据未读数快照决定加载量，确保第一条未读消息在数组中
-    const limit = calcLoadLimit(snapshotUnreadCount.value)
+    // 根据未读数决定加载量，确保第一条未读消息在数组中
+    const limit = calcLoadLimit(unreadCount)
 
     try {
       const [history, more] = await chatService.fetchHistory(
@@ -419,39 +458,23 @@ export const useChatStore = defineStore('chat', () => {
         limit
       )
 
-      // 撤回消息处理：
-      // 1. 接收者侧：过滤掉已撤回的消息（不显示）
-      // 2. 发送者侧：保留，但替换为 "你撤回了一条消息"
-      //
-      // 注意：除服务端返回的 is_revoked 外，还会叠加客户端撤回缓存
-      // （revokedMessageIds），防止切换聊天对象后因服务端数据不一致导致撤回标记丢失。
-      const filtered: Message[] = []
-      for (const m of history) {
-        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
-          if (m.sender_id === authStore.currentUser.id) {
-            m.is_revoked = true
-            m.content = '你撤回了一条消息'
-            filtered.push(m)
-          }
-          // else: 接收者侧直接丢弃
-        } else {
-          filtered.push(m)
-        }
-      }
+      const filtered = filterRevoked(history, authStore.currentUser.id)
 
       messages.value = filtered
       hasMore.value = more
 
-      // 根据未读快照计算第一条未读消息的位置
-      const unread = snapshotUnreadCount.value
-      if (unread > 0 && filtered.length > 0) {
-        // 第一条未读消息 = 数组尾部倒数第 unread 条
-        const firstIdx = Math.max(0, filtered.length - unread)
-        firstUnreadMessageId.value = filtered[firstIdx].id
-        showUnreadBubble.value = true
+      // 定位第一条未读消息：取数组中最早一条 is_read=false 的对方消息
+      if (unreadCount > 0 && filtered.length > 0) {
+        const myId = authStore.currentUser.id
+        const firstUnread = filtered.find(
+          (m) => m.sender_id !== myId && !m.is_read
+        )
+        if (firstUnread) {
+          firstUnreadMessageId.value = firstUnread.id
+        }
       }
 
-      // 不再在加载时立即 markAsRead；改为 ChatWindow onScroll 中延迟处理
+      // 已读标记不再在此处批量调用；改为 ChatWindow 中 IntersectionObserver 逐条标记
     } finally {
       isLoading.value = false
     }
@@ -475,19 +498,7 @@ export const useChatStore = defineStore('chat', () => {
         oldestMsg.created_at
       )
 
-      // 撤回消息处理（同 loadHistory 逻辑，叠加客户端撤回缓存）
-      const filtered: Message[] = []
-      for (const m of olderMsgs) {
-        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
-          if (m.sender_id === authStore.currentUser.id) {
-            m.is_revoked = true
-            m.content = '你撤回了一条消息'
-            filtered.push(m)
-          }
-        } else {
-          filtered.push(m)
-        }
-      }
+      const filtered = filterRevoked(olderMsgs, authStore.currentUser.id)
 
       if (filtered.length > 0) {
         // 前置插入到消息列表头部
@@ -505,69 +516,59 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /** 拉取群组第一页历史消息 */
-  async function loadGroupHistory(groupId: string) {
+  async function loadGroupHistory(groupId: string, unreadCount: number = 0) {
     isLoading.value = true
     hasMore.value = false
-    const limit = calcLoadLimit(snapshotUnreadCount.value)
+    const limit = calcLoadLimit(unreadCount)
     try {
       const [history, more] = await chatService.fetchGroupHistory(groupId, limit)
 
       const authStore = useAuthStore()
-      const filtered: Message[] = []
-      for (const m of history) {
-        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
-          if (m.sender_id === authStore.currentUser?.id) {
-            m.is_revoked = true
-            m.content = '你撤回了一条消息'
-            filtered.push(m)
-          }
-        } else {
-          filtered.push(m)
-        }
-      }
+      const filtered = filterRevoked(history, authStore.currentUser?.id ?? '')
 
       messages.value = filtered
       hasMore.value = more
 
-      // 根据未读快照计算第一条未读消息的位置
-      const unread = snapshotUnreadCount.value
-      if (unread > 0 && filtered.length > 0) {
-        const firstIdx = Math.max(0, filtered.length - unread)
-        firstUnreadMessageId.value = filtered[firstIdx].id
-        showUnreadBubble.value = true
+      // 定位第一条未读消息
+      if (unreadCount > 0 && filtered.length > 0) {
+        const myId = authStore.currentUser?.id ?? ''
+        const firstUnread = filtered.find(
+          (m) => m.sender_id !== myId && !m.is_read
+        )
+        if (firstUnread) {
+          firstUnreadMessageId.value = firstUnread.id
+        }
       }
 
-      // 不再在加载时立即 markGroupMessagesAsRead；改为 ChatWindow onScroll 中延迟处理
+      // 已读标记不再在此处批量调用；改为 ChatWindow 中 IntersectionObserver 逐条标记
     } finally {
       isLoading.value = false
     }
   }
 
   /**
-   * 标记当前聊天中的未读消息为已读（由 ChatWindow.onScroll 延迟调用）
-   * 使用 hasMarkedAsRead 标志位防止重复调用
+   * 标记单条消息为已读（由 ChatWindow 中的 IntersectionObserver 逐条调用）
+   * 同时乐观更新本地 is_read 状态，使 unreadRemaining computed 实时递减
    */
-  async function markCurrentChatAsRead() {
-    if (hasMarkedAsRead.value) return
-    hasMarkedAsRead.value = true
-
+  async function markMessageAsRead(messageId: string) {
     const authStore = useAuthStore()
     if (!authStore.currentUser) return
 
-    if (activeGroup.value) {
-      const unreadIds = messages.value
-        .filter((m) => m.sender_id !== authStore.currentUser!.id && !m.is_read && !m.is_revoked)
-        .map((m) => m.id)
-      if (unreadIds.length > 0) {
-        await chatService.markGroupMessagesAsRead(activeGroup.value.id, unreadIds)
+    // 先乐观更新本地状态（立即反映在 unreadRemaining computed 中）
+    const msg = messages.value.find((m) => m.id === messageId)
+    if (!msg || msg.is_read || msg.sender_id === authStore.currentUser.id) return
+    msg.is_read = true
+
+    // 异步通知服务端
+    try {
+      if (activeGroup.value) {
+        await chatService.markGroupMessagesAsRead(activeGroup.value.id, [messageId])
+      } else if (activeFriend.value) {
+        await chatService.markAsRead([messageId])
       }
-    } else if (activeFriend.value) {
-      const unreadIds = messages.value
-        .filter((m) => m.sender_id === activeFriend.value!.friend_id && !m.is_read)
-        .map((m) => m.id)
-      if (unreadIds.length > 0) {
-        await chatService.markAsRead(unreadIds)
-      }
+    } catch {
+      // 网络失败时回滚本地状态
+      msg.is_read = false
     }
   }
 
@@ -587,18 +588,7 @@ export const useChatStore = defineStore('chat', () => {
       )
 
       const authStore = useAuthStore()
-      const filtered: Message[] = []
-      for (const m of olderMsgs) {
-        if (m.is_revoked || revokedMessageIds.value.has(m.id)) {
-          if (m.sender_id === authStore.currentUser?.id) {
-            m.is_revoked = true
-            m.content = '你撤回了一条消息'
-            filtered.push(m)
-          }
-        } else {
-          filtered.push(m)
-        }
-      }
+      const filtered = filterRevoked(olderMsgs, authStore.currentUser?.id ?? '')
 
       if (filtered.length > 0) {
         messages.value = [...filtered, ...messages.value]
@@ -650,7 +640,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /** 发送文本消息 */
-  async function sendMessage(content: string, msgType: Message['msg_type'] = 'text') {
+  async function sendMessage(content: string, msgType: Message['msg_type'] = 'text', mentionIds?: string[]) {
     const authStore = useAuthStore()
     if (!authStore.currentUser) {
       throw new Error('缺少当前用户')
@@ -662,11 +652,17 @@ export const useChatStore = defineStore('chat', () => {
       sender_id: string
       receiver_id: string
       group_id?: string
+      mention_ids?: string[]
     } = {
       content,
       msg_type: msgType,
       sender_id: authStore.currentUser.id,
       receiver_id: '',
+    }
+
+    // 群聊 @mention
+    if (activeGroup.value && mentionIds && mentionIds.length > 0) {
+      msgData.mention_ids = mentionIds
     }
 
     if (activeGroup.value) {
@@ -756,6 +752,13 @@ export const useChatStore = defineStore('chat', () => {
    * Tauri 环境：调用 @tauri-apps/plugin-notification
    * Web 环境：使用浏览器 Notification API
    */
+
+  /** 判断一条消息是否 @ 了当前用户（含 @所有人） */
+  function isMentioningMe(msg: Message, myId: string): boolean {
+    if (!msg.mention_ids || msg.mention_ids.length === 0) return false
+    return msg.mention_ids.includes(MENTION_ALL) || msg.mention_ids.includes(myId)
+  }
+
   async function sendSystemNotification(msg: Message) {
     // 闪烁任务栏（Tauri only）
     await flashTaskbar()
@@ -774,6 +777,11 @@ export const useChatStore = defineStore('chat', () => {
     } else {
       const friend = friends.value.find(f => f.friend_id === msg.sender_id)
       title = friend?.name ?? '新消息'
+    }
+
+    // 被 @ 时标题前缀 [有人@我]
+    if (isMentioningMe(msg, authStore.currentUser.id)) {
+      title = `[有人@我] ${title}`
     }
 
     const body = msg.msg_type === 'text'
@@ -899,6 +907,15 @@ export const useChatStore = defineStore('chat', () => {
               messages.value.splice(existingIdx, 1)
             }
           }
+          // 撤回后检查是否还有未读消息，无未读则清空气泡定位
+          if (existingIdx !== -1 && firstUnreadMessageId.value === newMsg.id) {
+            // 第一条未读被撤回了，重新定位
+            const myId = authStore.currentUser.id
+            const nextUnread = messages.value.find(
+              (m) => m.sender_id !== myId && !m.is_read && !m.is_revoked
+            )
+            firstUnreadMessageId.value = nextUnread?.id ?? null
+          }
         } else if (existingIdx !== -1) {
           // 非撤回的 UPDATE：原地替换
           messages.value[existingIdx] = newMsg
@@ -925,22 +942,8 @@ export const useChatStore = defineStore('chat', () => {
             chatService.markAsRead([newMsg.id])
           }
         }
-
-        // ===== 未读气泡快照联动 =====
-        if (newMsg.is_revoked) {
-          // 撤回：气泡可见时快照递减
-          if (showUnreadBubble.value && snapshotUnreadCount.value > 0) {
-            snapshotUnreadCount.value--
-            if (snapshotUnreadCount.value <= 0) {
-              dismissUnreadBubble()
-            }
-          }
-        } else if (existingIdx === -1 && newMsg.sender_id !== authStore.currentUser.id) {
-          // 对方发来的新消息：气泡可见时快照递增
-          if (showUnreadBubble.value) {
-            snapshotUnreadCount.value++
-          }
-        }
+        // 注意：unreadRemaining 是 computed，基于 messages 中 is_read 字段自动计算
+        // showUnreadBubble 也是 computed，基于 firstUnreadMessageId + unreadRemaining
       }
 
       // ===== 非群消息：更新好友列表摘要 =====
@@ -986,8 +989,13 @@ export const useChatStore = defineStore('chat', () => {
               ? '你撤回了一条消息'
               : '[消息已被撤回]'
             g.last_message_type = 'text' as Message['msg_type']
-          } else {
-            g.last_message = newMsg.content
+          } else if (!messages.value.some((m) => m.id === newMsg.id && m.is_revoked)) {
+            // 被 @ 时摘要前缀 [有人@我]
+            if (isMentioningMe(newMsg, authStore.currentUser.id)) {
+              g.last_message = '[有人@我] ' + newMsg.content
+            } else {
+              g.last_message = newMsg.content
+            }
             g.last_message_type = newMsg.msg_type
           }
           g.last_message_at = newMsg.created_at
@@ -1115,10 +1123,7 @@ export const useChatStore = defineStore('chat', () => {
     showGroupMembersPanel.value = false
 
     // 重置未读气泡状态
-    snapshotUnreadCount.value = 0
     firstUnreadMessageId.value = null
-    showUnreadBubble.value = false
-    hasMarkedAsRead.value = false
   }
 
   /** 滚动到聊天底部 */
@@ -1147,12 +1152,12 @@ export const useChatStore = defineStore('chat', () => {
     showCreateGroupDialog,
     showGroupMembersPanel,
     // 未读浮动气泡
-    snapshotUnreadCount,
+    unreadRemaining,
     firstUnreadMessageId,
     showUnreadBubble,
     jumpToFirstUnread,
     dismissUnreadBubble,
-    markCurrentChatAsRead,
+    markMessageAsRead,
     // 派生
     onlineCount,
     unreadCounts,

@@ -1,24 +1,7 @@
 // ========== 核心数据对象类型 ==========
 
-/** 用户/员工 */
-export interface User {
-  /** 物理主键 (uuid) */
-  id: string
-  /** 员工唯一标识，7位数字字符串，如 '0001234' */
-  employee_id: string
-  /** 员工昵称/姓名 */
-  nickname: string
-  /** 头像 URL */
-  avatar_url?: string
-  /** 状态 */
-  status?: 'online' | 'offline' | 'away'
-  /** 邮箱 */
-  email?: string
-  /** 注册时间 (ISO string) */
-  created_at?: string
-  /** 主题偏好，默认 dark */
-  theme?: 'dark' | 'light'
-}
+/** @所有人 特殊标记常量 */
+export const MENTION_ALL = 'ALL'
 
 /** 聊天消息 */
 export interface Message {
@@ -44,6 +27,28 @@ export interface Message {
   file_name?: string
   /** 文件字节数（仅 file/image/voice 类型使用） */
   file_size?: number
+  /** 被 @ 的用户 ID 列表（仅群聊）；含 "ALL" 表示 @所有人 */
+  mention_ids?: string[]
+}
+
+/** 用户/员工 */
+export interface User {
+  /** 物理主键 (uuid) */
+  id: string
+  /** 员工唯一标识，7位数字字符串，如 '0001234' */
+  employee_id: string
+  /** 员工昵称/姓名 */
+  nickname: string
+  /** 头像 URL */
+  avatar_url?: string
+  /** 状态 */
+  status?: 'online' | 'offline' | 'away'
+  /** 邮箱 */
+  email?: string
+  /** 注册时间 (ISO string) */
+  created_at?: string
+  /** 主题偏好，默认 dark */
+  theme?: 'dark' | 'light'
 }
 
 /** 好友关系 */
@@ -161,6 +166,8 @@ export interface SendMessageParams {
   receiver_id: string
   /** 群组 ID，群聊时传入（单聊不传） */
   group_id?: string
+  /** 被 @ 的用户 ID 列表（仅群聊）；含 "ALL" 表示 @所有人 */
+  mention_ids?: string[]
   /** 原始文件名（仅 file/image/voice 类型使用） */
   file_name?: string
   /** 文件字节数（仅 file/image/voice 类型使用） */

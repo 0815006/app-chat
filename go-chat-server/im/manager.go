@@ -178,7 +178,7 @@ func (mgr *Manager) routeChatMessage(msg *WSMessage) {
 	ctx := context.Background()
 
 	// 异步写入 MySQL
-	stored, err := mgr.msgStore.StoreMessage(ctx, msg.SenderID, msg.ReceiverID, msg.GroupID, msg.Content, msg.MsgType, msg.FileName, msg.FileSize)
+	stored, err := mgr.msgStore.StoreMessage(ctx, msg.SenderID, msg.ReceiverID, msg.GroupID, msg.Content, msg.MsgType, msg.FileName, msg.FileSize, msg.MentionIDs)
 	if err != nil {
 		log.Printf("消息持久化失败: %v", err)
 	}
@@ -196,6 +196,7 @@ func (mgr *Manager) routeChatMessage(msg *WSMessage) {
 		GroupID:    msg.GroupID,
 		Content:    msg.Content,
 		MsgType:    msg.MsgType,
+		MentionIDs: msg.MentionIDs,
 		IsRead:     false,
 		IsRevoked:  false,
 		FileName:   msg.FileName,

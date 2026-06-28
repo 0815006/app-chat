@@ -19,19 +19,20 @@ type Client struct {
 
 // WSMessage WebSocket 消息标准格式（对齐前端 Message 接口）
 type WSMessage struct {
-	Type       string `json:"type"`                      // chat / typing / read_receipt / heartbeat / heartbeat_ack / online_status / message_revoke / group_member_join / group_update
-	ID         string `json:"id,omitempty"`              // 消息ID（对齐前端 Message.id）
-	SenderID   string `json:"sender_id,omitempty"`
-	ReceiverID string `json:"receiver_id,omitempty"`
-	GroupID    string `json:"group_id,omitempty"`        // 群组ID
-	Content    string `json:"content,omitempty"`
-	MsgType    string `json:"msg_type,omitempty"`        // text / image / file / voice
-	IsRead     bool   `json:"is_read,omitempty"`
-	IsRevoked  bool   `json:"is_revoked,omitempty"`
-	FileName   string `json:"file_name,omitempty"`
-	FileSize   int64  `json:"file_size,omitempty"`
-	CreatedAt  string `json:"created_at,omitempty"`      // ISO 时间字符串
-	Timestamp  int64  `json:"timestamp,omitempty"`       // 保留兼容
+	Type       string   `json:"type"`         // chat / typing / read_receipt / heartbeat / heartbeat_ack / online_status / message_revoke / group_member_join / group_update
+	ID         string   `json:"id,omitempty"` // 消息ID（对齐前端 Message.id）
+	SenderID   string   `json:"sender_id,omitempty"`
+	ReceiverID string   `json:"receiver_id,omitempty"`
+	GroupID    string   `json:"group_id,omitempty"` // 群组ID
+	Content    string   `json:"content,omitempty"`
+	MsgType    string   `json:"msg_type,omitempty"` // text / image / file / voice
+	IsRead     bool     `json:"is_read,omitempty"`
+	IsRevoked  bool     `json:"is_revoked,omitempty"`
+	FileName   string   `json:"file_name,omitempty"`
+	FileSize   int64    `json:"file_size,omitempty"`
+	MentionIDs []string `json:"mention_ids,omitempty"` // @提及的用户ID列表
+	CreatedAt  string   `json:"created_at,omitempty"`  // ISO 时间字符串
+	Timestamp  int64    `json:"timestamp,omitempty"`   // 保留兼容
 
 	// online_status 专用字段
 	UserID   string `json:"user_id,omitempty"`   // online_status / group_member_join 中的目标用户
