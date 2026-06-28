@@ -97,6 +97,20 @@ export const useChatStore = defineStore('chat', () => {
   /** 群成员面板显示状态 */
   const showGroupMembersPanel = ref(false)
 
+  // ========== 未读浮动气泡 ==========
+
+  /** 进入聊天时的未读数快照（不清零，用于气泡显示） */
+  const snapshotUnreadCount = ref(0)
+
+  /** 当前聊天中第一条未读消息的 ID（用于 scrollIntoView 定位） */
+  const firstUnreadMessageId = ref<string | null>(null)
+
+  /** 气泡是否可见 */
+  const showUnreadBubble = ref(false)
+
+  /** 是否已经为当前聊天调用过 markAsRead（防止重复调用） */
+  const hasMarkedAsRead = ref(false)
+
   // ========== 派生状态 ==========
 
   /** 当前活跃的聊天目标（统一好友/群组） */
@@ -153,6 +167,59 @@ export const useChatStore = defineStore('chat', () => {
     // 二期切换 go-chat-server 时，此处可触发 service 重新初始化
   }
 
+  // ========== 未读气泡辅助方法 ==========
+
+  /**
+   * 计算加载历史消息时应使用的 limit
+   * - 未读数 = 0：20（默认）
+   * - 未读数 ≤ 20：20（一屏内覆盖）
+   * - 未读数 21~80：unreadCount + 10（加少量冗余确保覆盖）
+   * - 未读数 > 80：100（上限，避免一次拉太多）
+   */
+  function calcLoadLimit(unreadCount: number): number {
+    if (unreadCount <= 0) return PAGE_SIZE
+    if (unreadCount <= 20) return PAGE_SIZE
+    if (unreadCount <= 80) return unreadCount + 10
+    return 100
+  }
+
+  /**
+   * 跳转到第一条未读消息（由 ChatWindow 调用）
+   * 使用 data-msg-id 属性查找对应 DOM 元素并 scrollIntoView
+   */
+  function jumpToFirstUnread(containerEl: HTMLElement) {
+    if (!firstUnreadMessageId.value) return
+    const el = containerEl.querySelector(
+      `[data-msg-id="${firstUnreadMessageId.value}"]`
+    ) as HTMLElement | null
+    if (el) {
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      // 微调：scrollIntoView 后预留 80px 顶部空间
+      setTimeout(() => {
+        containerEl.scrollTop -= 80
+      }, 50)
+    } else {
+      // fallback：估算位置（约 30% 高度处）
+      containerEl.scrollTop = containerEl.scrollHeight * 0.3
+    }
+  }
+
+  /** 隐藏气泡并重置未读快照 */
+  function dismissUnreadBubble() {
+    showUnreadBubble.value = false
+    snapshotUnreadCount.value = 0
+    firstUnreadMessageId.value = null
+  }
+
+  /** 快照并重置未读气泡状态（切换聊天入口统一调用） */
+  function snapshotAndSetUnread(unreadCount: number) {
+    dismissUnreadBubble()
+    hasMarkedAsRead.value = false
+    if (unreadCount > 0) {
+      snapshotUnreadCount.value = unreadCount
+    }
+  }
+
   // ========== 好友操作 ==========
 
   /** 拉取好友列表 */
@@ -178,9 +245,12 @@ export const useChatStore = defineStore('chat', () => {
     const found = friends.value.find(f => f.friend_id === id) ?? null
     activeFriend.value = found
     if (found) {
-      await loadHistory(found.friend_id)
-      // 打开聊天框时清除该好友的未读计数
+      // 快照未读数（不清零），用于后续定位第一条未读消息
+      const unread = found.unread_count ?? 0
+      snapshotAndSetUnread(unread)
+      // 立即清零前端未读计数（避免 FriendList 角标残留）
       found.unread_count = 0
+      await loadHistory(found.friend_id)
     }
   }
 
@@ -233,8 +303,10 @@ export const useChatStore = defineStore('chat', () => {
     const found = groups.value.find(g => g.id === id) ?? null
     activeGroup.value = found
     if (found) {
-      await loadGroupHistory(found.id)
+      const unread = found.unread_count ?? 0
+      snapshotAndSetUnread(unread)
       found.unread_count = 0
+      await loadGroupHistory(found.id)
     }
   }
 
@@ -336,11 +408,15 @@ export const useChatStore = defineStore('chat', () => {
     }
     isLoading.value = true
     hasMore.value = false
+
+    // 根据未读数快照决定加载量，确保第一条未读消息在数组中
+    const limit = calcLoadLimit(snapshotUnreadCount.value)
+
     try {
       const [history, more] = await chatService.fetchHistory(
         authStore.currentUser.id,
         friendId,
-        PAGE_SIZE
+        limit
       )
 
       // 撤回消息处理：
@@ -366,13 +442,16 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = filtered
       hasMore.value = more
 
-      // 标记对方发来的未读消息为已读
-      const unreadIds = history
-        .filter((m) => m.sender_id === friendId && !m.is_read)
-        .map((m) => m.id)
-      if (unreadIds.length > 0) {
-        await chatService.markAsRead(unreadIds)
+      // 根据未读快照计算第一条未读消息的位置
+      const unread = snapshotUnreadCount.value
+      if (unread > 0 && filtered.length > 0) {
+        // 第一条未读消息 = 数组尾部倒数第 unread 条
+        const firstIdx = Math.max(0, filtered.length - unread)
+        firstUnreadMessageId.value = filtered[firstIdx].id
+        showUnreadBubble.value = true
       }
+
+      // 不再在加载时立即 markAsRead；改为 ChatWindow onScroll 中延迟处理
     } finally {
       isLoading.value = false
     }
@@ -429,8 +508,9 @@ export const useChatStore = defineStore('chat', () => {
   async function loadGroupHistory(groupId: string) {
     isLoading.value = true
     hasMore.value = false
+    const limit = calcLoadLimit(snapshotUnreadCount.value)
     try {
-      const [history, more] = await chatService.fetchGroupHistory(groupId, PAGE_SIZE)
+      const [history, more] = await chatService.fetchGroupHistory(groupId, limit)
 
       const authStore = useAuthStore()
       const filtered: Message[] = []
@@ -449,15 +529,45 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = filtered
       hasMore.value = more
 
-      // 标记群消息为已读
-      const unreadIds = history
-        .filter((m) => m.sender_id !== authStore.currentUser?.id && !m.is_read && !m.is_revoked)
-        .map((m) => m.id)
-      if (unreadIds.length > 0) {
-        await chatService.markGroupMessagesAsRead(groupId, unreadIds)
+      // 根据未读快照计算第一条未读消息的位置
+      const unread = snapshotUnreadCount.value
+      if (unread > 0 && filtered.length > 0) {
+        const firstIdx = Math.max(0, filtered.length - unread)
+        firstUnreadMessageId.value = filtered[firstIdx].id
+        showUnreadBubble.value = true
       }
+
+      // 不再在加载时立即 markGroupMessagesAsRead；改为 ChatWindow onScroll 中延迟处理
     } finally {
       isLoading.value = false
+    }
+  }
+
+  /**
+   * 标记当前聊天中的未读消息为已读（由 ChatWindow.onScroll 延迟调用）
+   * 使用 hasMarkedAsRead 标志位防止重复调用
+   */
+  async function markCurrentChatAsRead() {
+    if (hasMarkedAsRead.value) return
+    hasMarkedAsRead.value = true
+
+    const authStore = useAuthStore()
+    if (!authStore.currentUser) return
+
+    if (activeGroup.value) {
+      const unreadIds = messages.value
+        .filter((m) => m.sender_id !== authStore.currentUser!.id && !m.is_read && !m.is_revoked)
+        .map((m) => m.id)
+      if (unreadIds.length > 0) {
+        await chatService.markGroupMessagesAsRead(activeGroup.value.id, unreadIds)
+      }
+    } else if (activeFriend.value) {
+      const unreadIds = messages.value
+        .filter((m) => m.sender_id === activeFriend.value!.friend_id && !m.is_read)
+        .map((m) => m.id)
+      if (unreadIds.length > 0) {
+        await chatService.markAsRead(unreadIds)
+      }
     }
   }
 
@@ -815,6 +925,22 @@ export const useChatStore = defineStore('chat', () => {
             chatService.markAsRead([newMsg.id])
           }
         }
+
+        // ===== 未读气泡快照联动 =====
+        if (newMsg.is_revoked) {
+          // 撤回：气泡可见时快照递减
+          if (showUnreadBubble.value && snapshotUnreadCount.value > 0) {
+            snapshotUnreadCount.value--
+            if (snapshotUnreadCount.value <= 0) {
+              dismissUnreadBubble()
+            }
+          }
+        } else if (existingIdx === -1 && newMsg.sender_id !== authStore.currentUser.id) {
+          // 对方发来的新消息：气泡可见时快照递增
+          if (showUnreadBubble.value) {
+            snapshotUnreadCount.value++
+          }
+        }
       }
 
       // ===== 非群消息：更新好友列表摘要 =====
@@ -987,6 +1113,12 @@ export const useChatStore = defineStore('chat', () => {
     showAddFriendDialog.value = false
     showCreateGroupDialog.value = false
     showGroupMembersPanel.value = false
+
+    // 重置未读气泡状态
+    snapshotUnreadCount.value = 0
+    firstUnreadMessageId.value = null
+    showUnreadBubble.value = false
+    hasMarkedAsRead.value = false
   }
 
   /** 滚动到聊天底部 */
@@ -1014,6 +1146,13 @@ export const useChatStore = defineStore('chat', () => {
     showAddFriendDialog,
     showCreateGroupDialog,
     showGroupMembersPanel,
+    // 未读浮动气泡
+    snapshotUnreadCount,
+    firstUnreadMessageId,
+    showUnreadBubble,
+    jumpToFirstUnread,
+    dismissUnreadBubble,
+    markCurrentChatAsRead,
     // 派生
     onlineCount,
     unreadCounts,

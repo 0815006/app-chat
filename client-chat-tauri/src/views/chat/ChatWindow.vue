@@ -61,6 +61,13 @@ function cancelEditGroupName() {
   editingGroupNameValue.value = ''
 }
 
+/** 点击气泡跳转到第一条未读消息 */
+function onBubbleClick() {
+  if (containerRef.value) {
+    chatStore.jumpToFirstUnread(containerRef.value)
+  }
+}
+
 /** 图片预览状态 */
 const previewVisible = ref(false)
 const previewSrc = ref('')
@@ -383,6 +390,9 @@ const TIME_GAP_MS = 5 * 60 * 1000
 /** 正在加载更多消息（滚动到顶部时） */
 const isPullingMore = ref(false)
 
+/** 初始滚动标志：防止编程式滚底被 onScroll 误判为"用户滚到底"而立即隐藏气泡 */
+const isInitialScroll = ref(false)
+
 /**
  * 在相邻消息间隔 >5 分钟的位置插入分隔线
  * 返回 "(消息 | 'time-separator')[]"
@@ -418,12 +428,32 @@ const displayMessages = computed(() => {
   return result
 })
 
-// 切换好友/群组 / 新消息时自动滚底（但不包括加载更多触发的消息变化）
+// 进入新聊天时（切换好友/群组）：始终滚到最新消息，气泡悬浮供用户向上定位未读
 watch(
-  () => [chatStore.activeFriendId, chatStore.activeGroupId, chatStore.messages.length] as const,
-  async (_new, _old) => {
-    // 如果是加载更多触发的（hasMore 从 true 变成了变化），不自动滚底
+  () => [chatStore.activeFriendId, chatStore.activeGroupId] as const,
+  async () => {
+    await nextTick()
+    if (!containerRef.value) return
+
+    // 始终滚到底部（最新消息可见，微信模式）
+    containerRef.value.scrollTop = containerRef.value.scrollHeight
+
+    // 标记初始滚动，防止 onScroll 中立即误判为"用户主动滚到底"而隐藏气泡
+    isInitialScroll.value = true
+    setTimeout(() => {
+      isInitialScroll.value = false
+    }, 600)
+  }
+)
+
+// 新消息到达当前聊天时：气泡可见则不跳转（让用户继续阅读），否则滚底
+watch(
+  () => chatStore.messages.length,
+  async () => {
+    // 加载更多触发的消息变化不自动滚底
     if (isPullingMore.value) return
+    // 气泡可见时不做跳转——用户正在阅读未读区域，由 Realtime 回调更新快照计数
+    if (chatStore.showUnreadBubble) return
 
     await nextTick()
     if (containerRef.value) {
@@ -440,7 +470,7 @@ watch(
   }
 )
 
-/** 监听滚动到顶部，触发加载更多 */
+/** 监听滚动到顶部，触发加载更多；并检测气泡可见性 */
 function onScroll() {
   if (!containerRef.value) return
   const el = containerRef.value
@@ -448,6 +478,19 @@ function onScroll() {
   // 滚动到顶部（< 60px 阈值）时触发加载更多
   if (el.scrollTop <= 60 && !isPullingMore.value && chatStore.hasMore && !chatStore.isLoadingMore) {
     pullMoreHistory()
+  }
+
+  // === 未读气泡可见性检测 + 延迟已读 ===
+
+  // 初始滚动期间不触发气泡消失检测（编程式滚底 vs 用户主动滚底）
+  if (isInitialScroll.value) return
+
+  // 用户主动滚动到底部附近（< 120px）→ 隐藏气泡并标记已读
+  // 这是气泡自动消失的唯一触发条件（与微信行为一致：只有用户滚到底才算"看完"）
+  const distToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distToBottom < 120 && chatStore.showUnreadBubble) {
+    chatStore.dismissUnreadBubble()
+    chatStore.markCurrentChatAsRead()
   }
 }
 
@@ -621,6 +664,24 @@ function getSenderAvatar(msg: Message): string | undefined {
         <span class="text-[11px] text-[var(--color-text-disabled)]">没有更多消息了</span>
       </div>
 
+      <!-- 未读浮动气泡 -->
+      <Transition name="bubble-fade">
+        <div
+          v-if="chatStore.showUnreadBubble && chatStore.snapshotUnreadCount > 0"
+          class="sticky top-4 z-10 flex justify-center pointer-events-none"
+        >
+          <button
+            class="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-[var(--color-bg-dialog)] border border-[var(--color-border-default)] rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.35)] text-[var(--color-text-primary)] text-[13px] font-medium cursor-pointer hover:bg-[var(--color-hover-bg)] hover:border-[var(--color-text-muted)]/40 transition-all duration-200 active:scale-95"
+            @click.stop="onBubbleClick"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 text-blue-400">
+              <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>{{ chatStore.snapshotUnreadCount }} 条新消息</span>
+          </button>
+        </div>
+      </Transition>
+
       <!-- 加载态 -->
       <div v-if="chatStore.isLoading" class="flex items-center justify-center py-12 text-[var(--color-text-muted)] text-sm">
         <span class="w-4 h-4 border-2 border-[var(--color-text-muted)]/30 border-t-[var(--color-text-muted)] rounded-full animate-spin mr-2"></span>
@@ -643,7 +704,8 @@ function getSenderAvatar(msg: Message): string | undefined {
         <div
           v-else
           :key="item.id"
-          class="flex gap-3 max-w-[75%] mb-0.5"
+          :data-msg-id="item.id"
+          class="flex gap-3 max-w-[75%] mb-0.5 scroll-mt-20"
           :class="item.sender_id === authStore.currentUser?.id ? 'self-end flex-row-reverse' : 'self-start'"
           @contextmenu.prevent="onContextMenu($event, item)"
         >
@@ -822,3 +884,21 @@ function getSenderAvatar(msg: Message): string | undefined {
   />
 </div>
 </template>
+
+<style scoped>
+/* 未读气泡淡入淡出动画 */
+.bubble-fade-enter-active {
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+.bubble-fade-leave-active {
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+}
+.bubble-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.92);
+}
+.bubble-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
+</style>
