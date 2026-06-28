@@ -79,7 +79,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="flex h-dvh w-full bg-[var(--color-bg-default)] relative">
+  <div class="flex flex-col h-dvh w-full bg-[var(--color-bg-default)] relative">
     <!-- 右上角关闭按钮（decorations: false 时无系统标题栏，需自行提供退出入口） -->
     <button
       class="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-red-500/20 hover:text-[#fc8181] transition-colors cursor-pointer z-20"
@@ -90,6 +90,7 @@ async function handleSubmit() {
         <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
       </svg>
     </button>
+    <div class="flex flex-1 min-h-0">
     <!-- 左侧品牌区 -->
     <div class="hidden md:flex flex-[0_0_420px] items-center justify-center relative overflow-hidden bg-gradient-to-br from-[var(--color-bg-default)] via-[var(--color-bg-elevated)] to-[var(--color-bg-deepest)]">
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(66,153,225,0.1),transparent_60%)]"></div>
@@ -210,6 +211,14 @@ async function handleSubmit() {
           </button>
         </div>
       </div>
+    </div>
+    </div>
+
+    <!-- 底部版权栏 -->
+    <div class="flex items-center justify-center h-9 shrink-0 border-t border-[var(--color-border-default)] bg-[var(--color-bg-elevated)]">
+      <p class="text-[11px] text-[var(--color-text-disabled)] tracking-wide select-none">
+        Copyright &copy; 2026 Chat聊天工具 All Rights Reserved. cd5403 版权所有
+      </p>
     </div>
   </div>
 </template>
