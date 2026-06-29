@@ -78,6 +78,9 @@ onMounted(async () => {
 
   // 初始化群组更新实时同步（群名修改时所有成员实时感知）
   chatStore.initGroupUpdateListener()
+
+  // 初始化好友关系实时感知（被别人添加为好友时自动刷新列表）
+  chatStore.initFriendshipListener()
 })
 
 onUnmounted(() => {
@@ -88,6 +91,7 @@ onUnmounted(() => {
   chatStore.destroyOnlineStatusListener()
   chatStore.destroyGroupMembersListener()
   chatStore.destroyGroupUpdateListener()
+  chatStore.destroyFriendshipListener()
 })
 </script>
 

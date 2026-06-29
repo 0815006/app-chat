@@ -949,6 +949,30 @@ class SupabaseChatService implements IChatService {
       supabase.removeChannel(channel)
     }
   }
+
+  // ==================== 好友关系实时感知 ====================
+
+  subscribeToFriendships(callback: (event: { userId: string; friendId: string }) => void): () => void {
+    const supabase = getSupabase()
+    const channel = supabase
+      .channel('friendships-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'friendships' },
+        (payload) => {
+          const newRow = payload.new as Record<string, unknown>
+          callback({
+            userId: newRow.user_id as string,
+            friendId: newRow.friend_id as string,
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }
 }
 
 // 仅导出类，不导出实例（实例由 services/index.ts 统一管理）

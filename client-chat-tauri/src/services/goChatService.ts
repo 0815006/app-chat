@@ -378,6 +378,12 @@ class GoChatService implements IChatService {
               avatar_url: raw.avatar_url as string,
             })
             break
+          case 'friend_added':
+            this._onFriendshipAdded(
+              raw.user_id as string,
+              raw.friend_id as string
+            )
+            break
           default:
             // 兼容旧格式（无 type 字段的纯 Message）
             this.onMessageCallback?.(raw as Message)
@@ -686,6 +692,22 @@ class GoChatService implements IChatService {
     return () => {
       this.onGroupUpdateCallback = null
     }
+  }
+
+  // ==================== 好友关系实时感知 ====================
+
+  private onFriendshipAddedCallback: ((event: { userId: string; friendId: string }) => void) | null = null
+
+  subscribeToFriendships(callback: (event: { userId: string; friendId: string }) => void): () => void {
+    this.onFriendshipAddedCallback = callback
+    return () => {
+      this.onFriendshipAddedCallback = null
+    }
+  }
+
+  /** 内部方法：由 WebSocket onmessage 分发 friend_added 事件 */
+  private _onFriendshipAdded(userId: string, friendId: string) {
+    this.onFriendshipAddedCallback?.({ userId, friendId })
   }
 }
 

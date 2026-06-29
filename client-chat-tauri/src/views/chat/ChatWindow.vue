@@ -88,6 +88,13 @@ function onBubbleClick() {
   }
 }
 
+/** 点击 @mention 气泡跳转到最近的未读 @mention，未完则继续显示 */
+function onMentionClick() {
+  if (containerRef.value) {
+    chatStore.jumpToNextMention(containerRef.value)
+  }
+}
+
 /** 图片预览状态 */
 const previewVisible = ref(false)
 const previewSrc = ref('')
@@ -816,6 +823,27 @@ function getSenderAvatar(msg: Message): string | undefined {
               <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>{{ chatStore.unreadRemaining }} 条新消息</span>
+          </button>
+        </div>
+      </Transition>
+
+      <!-- @mention 浮动气泡（仅群聊，独立于通用未读气泡） -->
+      <Transition name="bubble-fade">
+        <div
+          v-if="chatStore.showMentionBubble"
+          class="sticky top-4 z-10 flex justify-center pointer-events-none"
+        >
+          <button
+            class="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-400/30 rounded-full shadow-[0_4px_24px_rgba(239,68,68,0.25)] text-red-400 text-[13px] font-medium cursor-pointer hover:bg-red-500/20 hover:border-red-400/50 transition-all duration-200 active:scale-95"
+            @click.stop="onMentionClick"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-red-400">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1s1 .45 1 1v4c0 .55-.45 1-1 1zm1-8h-2V7h2v2z"/>
+            </svg>
+            <span>有人@我</span>
+            <template v-if="chatStore.unreadMentionCount > 1">
+              <span class="text-[11px] text-red-300/70 ml-0.5">(还有{{ chatStore.unreadMentionCount - 1 }}条)</span>
+            </template>
           </button>
         </div>
       </Transition>

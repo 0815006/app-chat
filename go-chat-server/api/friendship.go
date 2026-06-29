@@ -44,6 +44,9 @@ func AddFriend(c *gin.Context) {
 		return
 	}
 
+	// 通过 WebSocket 通知被添加方（目标用户）刷新好友列表
+	im.GetManager().BroadcastFriendAdded(req.FriendID, userID)
+
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "添加好友成功", "data": resp})
 }
 

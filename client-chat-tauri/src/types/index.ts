@@ -250,4 +250,8 @@ export interface IChatService {
   subscribeToGroupUpdates(callback: (event: { groupId: string; name: string; avatar_url: string }) => void): () => void
   /** 更新用户主题偏好，返回更新后的完整 User */
   updateTheme(theme: 'dark' | 'light'): Promise<User>
+
+  // ========== 好友关系实时感知 ==========
+  /** 订阅 friendships 表 INSERT 事件（被别人添加为好友时实时感知）；返回取消订阅函数 */
+  subscribeToFriendships(callback: (event: { userId: string; friendId: string }) => void): () => void
 }

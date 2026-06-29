@@ -415,6 +415,16 @@ func (mgr *Manager) BroadcastGroupMemberJoin(groupID, userID string) {
 	}
 }
 
+// BroadcastFriendAdded 广播好友添加通知（目标用户实时感知被添加）
+func (mgr *Manager) BroadcastFriendAdded(userID, friendID string) {
+	msg := WSMessage{
+		Type:     "friend_added",
+		UserID:   userID,
+		FriendID: friendID,
+	}
+	mgr.sendToClient(userID, msg)
+}
+
 // BroadcastGroupUpdate 广播群信息更新通知
 func (mgr *Manager) BroadcastGroupUpdate(groupID, name, avatarURL string) {
 	msg := WSMessage{

@@ -19,7 +19,7 @@ type Client struct {
 
 // WSMessage WebSocket 消息标准格式（对齐前端 Message 接口）
 type WSMessage struct {
-	Type       string   `json:"type"`         // chat / typing / read_receipt / heartbeat / heartbeat_ack / online_status / message_revoke / group_member_join / group_update
+	Type       string   `json:"type"`         // chat / typing / read_receipt / heartbeat / heartbeat_ack / online_status / message_revoke / group_member_join / group_update / friend_added
 	ID         string   `json:"id,omitempty"` // 消息ID（对齐前端 Message.id）
 	SenderID   string   `json:"sender_id,omitempty"`
 	ReceiverID string   `json:"receiver_id,omitempty"`
@@ -35,8 +35,11 @@ type WSMessage struct {
 	Timestamp  int64    `json:"timestamp,omitempty"`   // 保留兼容
 
 	// online_status 专用字段
-	UserID   string `json:"user_id,omitempty"`   // online_status / group_member_join 中的目标用户
+	UserID   string `json:"user_id,omitempty"`   // online_status / group_member_join / friend_added 中的目标用户
 	IsOnline bool   `json:"is_online,omitempty"` // online_status 中的在线状态
+
+	// friend_added 专用字段
+	FriendID string `json:"friend_id,omitempty"` // friend_added 中的发起好友者 ID
 
 	// group_update 专用字段
 	Name      string `json:"name,omitempty"`

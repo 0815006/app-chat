@@ -120,10 +120,25 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 气泡是否可见：有未读定位目标 且 确实还有未读消息
+   * 当 @mention 气泡存在时隐藏通用气泡（互斥，避免重叠），参考微信"@提及优先"逻辑
    */
   const showUnreadBubble = computed(() => {
-    return firstUnreadMessageId.value !== null && unreadRemaining.value > 0
+    return firstUnreadMessageId.value !== null && unreadRemaining.value > 0 && mentionMessageIds.value.length === 0
   })
+
+  // ========== @mention 浮动气泡（仅群聊） ==========
+
+  /**
+   * 当前群聊中未读 @mention 消息 ID 列表（按 created_at 降序，最新在前）
+   * 在 loadGroupHistory 中填充；每次 jumpToNextMention 弹出第一个（最近的）
+   */
+  const mentionMessageIds = ref<string[]>([])
+
+  /** 未读 @mention 消息数 */
+  const unreadMentionCount = computed(() => mentionMessageIds.value.length)
+
+  /** @mention 气泡是否可见：群聊中还有未读 @mention */
+  const showMentionBubble = computed(() => unreadMentionCount.value > 0)
 
   // ========== 派生状态 ==========
 
@@ -173,6 +188,7 @@ export const useChatStore = defineStore('chat', () => {
   let unsubscribeOnlineStatus: (() => void) | null = null
   let unsubscribeGroupMembers: (() => void) | null = null
   let unsubscribeGroupUpdates: (() => void) | null = null
+  let unsubscribeFriendships: (() => void) | null = null
 
   // ========== 后端切换 ==========
 
@@ -233,6 +249,39 @@ export const useChatStore = defineStore('chat', () => {
     firstUnreadMessageId.value = null
   }
 
+  // ========== @mention 气泡方法 ==========
+
+  /** 跳转到最近一条未读 @mention 消息，然后弹出该 ID；完成后若还有剩余则气泡继续显示 */
+  function jumpToNextMention(containerEl: HTMLElement) {
+    if (mentionMessageIds.value.length === 0) return
+
+    const targetId = mentionMessageIds.value[0]
+    const el = containerEl.querySelector(
+      `[data-msg-id="${targetId}"]`
+    ) as HTMLElement | null
+
+    if (el) {
+      const containerRect = containerEl.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const offsetInViewport = elRect.top - containerRect.top
+      const targetScrollTop = containerEl.scrollTop + offsetInViewport - 80
+      containerEl.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth',
+      })
+    } else {
+      containerEl.scrollTop = containerEl.scrollHeight * 0.3
+    }
+
+    // 弹出第一个（最近一条），剩余的下次点击继续
+    mentionMessageIds.value.shift()
+  }
+
+  /** 关闭群聊/切换到非群聊时清除 @mention 气泡状态 */
+  function dismissMentionBubble() {
+    mentionMessageIds.value = []
+  }
+
   // ========== 好友操作 ==========
 
   /** 拉取好友列表 */
@@ -262,6 +311,7 @@ export const useChatStore = defineStore('chat', () => {
       const unread = found.unread_count ?? 0
       // 重置气泡状态
       resetUnreadBubble()
+      dismissMentionBubble()
       // 立即清零前端未读计数（避免 FriendList 角标残留）
       found.unread_count = 0
       await loadHistory(found.friend_id, unread)
@@ -319,6 +369,7 @@ export const useChatStore = defineStore('chat', () => {
     if (found) {
       const unread = found.unread_count ?? 0
       resetUnreadBubble()
+      dismissMentionBubble()
       found.unread_count = 0
       await loadGroupHistory(found.id, unread)
     }
@@ -538,6 +589,18 @@ export const useChatStore = defineStore('chat', () => {
         if (firstUnread) {
           firstUnreadMessageId.value = firstUnread.id
         }
+
+        // 扫描未读 @mention 消息（按 created_at 降序，最新在前）
+        mentionMessageIds.value = filtered
+          .filter(
+            (m) => m.sender_id !== myId && !m.is_read && !m.is_revoked && isMentioningMe(m, myId)
+          )
+          .sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )
+          .map((m) => m.id)
+      } else {
+        mentionMessageIds.value = []
       }
 
       // 已读标记不再在此处批量调用；改为 ChatWindow 中 IntersectionObserver 逐条标记
@@ -558,6 +621,12 @@ export const useChatStore = defineStore('chat', () => {
     const msg = messages.value.find((m) => m.id === messageId)
     if (!msg || msg.is_read || msg.sender_id === authStore.currentUser.id) return
     msg.is_read = true
+
+    // 如果该消息在 @mention 气泡列表中，移除以保持列表准确反映未读状态
+    const mentionIdx = mentionMessageIds.value.indexOf(messageId)
+    if (mentionIdx !== -1) {
+      mentionMessageIds.value.splice(mentionIdx, 1)
+    }
 
     // 异步通知服务端
     try {
@@ -944,6 +1013,8 @@ export const useChatStore = defineStore('chat', () => {
         }
         // 注意：unreadRemaining 是 computed，基于 messages 中 is_read 字段自动计算
         // showUnreadBubble 也是 computed，基于 firstUnreadMessageId + unreadRemaining
+        // mentionMessageIds 由 loadGroupHistory 填充（进入群聊时扫描未读消息）；
+        // 当前正在群聊中收到的新 @mention 消息立即可见，不加入气泡列表
       }
 
       // ===== 非群消息：更新好友列表摘要 =====
@@ -1093,6 +1164,32 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 初始化好友关系实时感知（被别人添加为好友时自动刷新列表） */
+  function initFriendshipListener() {
+    if (unsubscribeFriendships) {
+      return
+    }
+
+    const authStore = useAuthStore()
+
+    unsubscribeFriendships = chatService.subscribeToFriendships(
+      (event: { userId: string; friendId: string }) => {
+        // 仅当被添加的好友是自己时才刷新好友列表
+        if (event.userId === authStore.currentUser?.id) {
+          loadFriends()
+        }
+      }
+    )
+  }
+
+  /** 取消好友关系实时感知订阅 */
+  function destroyFriendshipListener() {
+    if (unsubscribeFriendships) {
+      unsubscribeFriendships()
+      unsubscribeFriendships = null
+    }
+  }
+
   /**
    * 重置所有聊天状态（登出时调用）
    * 确保下一个登录用户看到的是干净的聊天界面
@@ -1103,6 +1200,7 @@ export const useChatStore = defineStore('chat', () => {
     destroyOnlineStatusListener()
     destroyGroupMembersListener()
     destroyGroupUpdateListener()
+    destroyFriendshipListener()
 
     // 清除客户端撤回缓存
     clearRevokedIds()
@@ -1124,6 +1222,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // 重置未读气泡状态
     firstUnreadMessageId.value = null
+    mentionMessageIds.value = []
   }
 
   /** 滚动到聊天底部 */
@@ -1157,6 +1256,12 @@ export const useChatStore = defineStore('chat', () => {
     showUnreadBubble,
     jumpToFirstUnread,
     dismissUnreadBubble,
+    // @mention 浮动气泡（仅群聊）
+    mentionMessageIds,
+    unreadMentionCount,
+    showMentionBubble,
+    jumpToNextMention,
+    dismissMentionBubble,
     markMessageAsRead,
     // 派生
     onlineCount,
@@ -1202,6 +1307,9 @@ export const useChatStore = defineStore('chat', () => {
     // 群组更新实时同步
     initGroupUpdateListener,
     destroyGroupUpdateListener,
+    // 好友关系实时感知
+    initFriendshipListener,
+    destroyFriendshipListener,
     // 状态重置（登出时清理）
     resetAll,
   }
