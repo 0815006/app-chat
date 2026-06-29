@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import TitleBar from '../components/TitleBar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,19 +15,6 @@ const confirmPassword = ref('')
 const employeeId = ref('')
 const name = ref('')
 const successMsg = ref('')
-
-/** 检测是否运行在 Tauri 环境 */
-const isTauri = !!(window as any).__TAURI_INTERNALS__
-
-/** 关闭应用窗口 */
-async function closeWindow() {
-  if (!isTauri) return
-  try {
-    await getCurrentWindow().close()
-  } catch (e) {
-    console.error('[Login] 关闭窗口失败:', e)
-  }
-}
 
 const canSubmit = computed(() => {
   if (isLogin.value) {
@@ -79,17 +66,8 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="flex flex-col h-dvh w-full bg-[var(--color-bg-default)] relative">
-    <!-- 右上角关闭按钮（decorations: false 时无系统标题栏，需自行提供退出入口） -->
-    <button
-      class="absolute top-2 right-2 w-9 h-9 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-red-500/20 hover:text-[#fc8181] transition-colors cursor-pointer z-20"
-      title="退出软件"
-      @click="closeWindow"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
-        <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" />
-      </svg>
-    </button>
+  <div class="flex flex-col h-dvh w-full bg-[var(--color-bg-default)]">
+    <TitleBar />
     <div class="flex flex-1 min-h-0">
     <!-- 左侧品牌区 -->
     <div class="hidden md:flex flex-[0_0_420px] items-center justify-center relative overflow-hidden bg-gradient-to-br from-[var(--color-bg-default)] via-[var(--color-bg-elevated)] to-[var(--color-bg-deepest)]">
