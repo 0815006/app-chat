@@ -13,6 +13,8 @@ const inputText = ref('')
 
 /** 隐藏的 file input 引用 */
 const fileInputRef = ref<HTMLInputElement>()
+/** 文本输入框引用（用于 MentionSelector 浮窗定位） */
+const inputRef = ref<HTMLInputElement>()
 /** 正在上传文件（显示加载状态） */
 const isUploading = ref(false)
 
@@ -100,15 +102,11 @@ function onInput(e: Event) {
   const atIndex = text.lastIndexOf('@', cursorPos - 1)
 
   if (atIndex !== -1 && isGroupChat.value) {
-    // 确保 @ 是独立的（前面是空白或开头）
-    const charBefore = atIndex === 0 ? ' ' : text[atIndex - 1]
-    const isValidAt = atIndex === 0 || charBefore === ' ' || charBefore === '\n'
-
     // 光标必须在 @ 之后、且 @ 之后没有空格（表示正在输入关键词）
     const afterAt = text.substring(atIndex + 1, cursorPos)
     const hasSpaceAfter = afterAt.includes(' ')
 
-    if (isValidAt && !hasSpaceAfter) {
+    if (!hasSpaceAfter) {
       mentionStartIndex.value = atIndex
       mentionActive.value = true
       // 确保成员列表已加载
@@ -303,6 +301,7 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
 
     <!-- 文本输入框 -->
     <input
+      ref="inputRef"
       id="chat-message-input"
       v-model="inputText"
       type="text"
@@ -333,6 +332,7 @@ function detectFileType(file: File): 'image' | 'file' | 'voice' {
       :keyword="mentionKeyword"
       :members="groupMembers"
       :current-user-id="authStore.currentUser?.id ?? ''"
+      :anchor-el="inputRef ?? null"
       @select="onMentionSelect"
       @close="closeMentionSelector"
     />

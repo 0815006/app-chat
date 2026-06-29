@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import type { GroupMember } from '../../types'
 import Avatar from '../Avatar.vue'
 
@@ -11,6 +11,8 @@ interface Props {
   members: GroupMember[]
   /** 当前用户 ID（排除自己） */
   currentUserId: string
+  /** 输入框 DOM 元素引用，用于浮窗定位 */
+  anchorEl: HTMLElement | null
 }
 
 interface Emits {
@@ -47,11 +49,32 @@ const totalItems = computed(() => {
   return count
 })
 
-// visible 切换时重置选中索引
+/** 浮窗定位：相对于输入框锚点元素 */
+const popoverStyle = ref<Record<string, string>>({})
+
+function updatePosition() {
+  if (!props.anchorEl) return
+  const rect = props.anchorEl.getBoundingClientRect()
+  popoverStyle.value = {
+    left: rect.left + 'px',
+    bottom: (window.innerHeight - rect.top + 8) + 'px',
+  }
+}
+
+// visible 切换时重置选中索引并更新位置
 watch(() => props.visible, (v) => {
   if (v) {
     selectedIndex.value = 0
+    updatePosition()
   }
+})
+
+// 窗口 resize 时重新计算位置
+onMounted(() => {
+  window.addEventListener('resize', updatePosition)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', updatePosition)
 })
 
 function handleSelectAll() {
@@ -113,7 +136,7 @@ defineExpose({ handleKeydown })
     <div
       v-if="visible"
       class="fixed z-[9999] w-64 max-h-56 overflow-hidden rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-elevated)] shadow-2xl"
-      style="bottom: 80px; left: var(--selector-left, 16px);"
+      :style="popoverStyle"
     >
       <!-- @所有人 固定项 -->
       <template v-if="showAllItem">
